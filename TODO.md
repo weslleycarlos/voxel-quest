@@ -12,12 +12,19 @@ Rastreamento por fase para retomar de onde parou (doc-roadmap §6, §7.4).
 - [x] Movimento WASD + colisão AABB + gravidade (`entities/player.ts`)
 - [x] HUD, céu, névoa e iluminação suave
 
-## Fase 1 — Mundo (próxima)
-- [ ] `chunkManager.ts`: carregar/descarregar chunks ao redor do jogador
-- [ ] `terrainGen.ts`: geração procedural por seed, biomas e cavernas (simplex-noise)
-- [ ] Quebrar/colocar blocos (rebuild só do chunk modificado)
-- [ ] Tela inicial com múltiplos mundos (criar/listar/carregar/excluir)
-- [ ] Autosave em IndexedDB (apenas chunks modificados)
+## Fase 1 — Mundo ✅
+- [x] `chunkManager.ts`: carregar/descarregar chunks ao redor do jogador (raio 6, fila por distância, orçamento por frame)
+- [x] `terrainGen.ts`: geração procedural por seed (simplex-noise), 4 biomas (planície/floresta/deserto/montanha) e cavernas 3D
+- [x] Quebrar/colocar blocos com raycast DDA, destaque do bloco mirado e rebuild só do chunk modificado (+vizinhos de borda)
+- [x] Hotbar simplificada de blocos (teclas 1–7)
+- [x] Tela inicial com múltiplos mundos (criar com nome+seed, listar, carregar, excluir) — `screens/titleScreen.ts`
+- [x] Autosave em IndexedDB (30 s, pausa e beforeunload; apenas chunks modificados) — `save/`
+- [x] Água deixou de ser sólida: fluido com física de nado (afundar devagar, espaço nada, overlay submerso)
+
+### Pendências conhecidas (Fase 1)
+- [ ] Geração de terreno em Web Worker (doc §5) — hoje é na main thread com orçamento de 2 chunks/frame
+- [ ] Renomear mundo na tela inicial (doc §4.8 menciona; não era item do roadmap §6)
+- [ ] Água dinâmica (fluxo/espalhamento) — fora do escopo do doc
 
 ## Fase 2 — Sobrevivência
 - [ ] Inventário + hotbar, dureza/ferramentas por tier, minérios, crafting, dia/noite
