@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { Input } from "../core/input.ts";
 
 export type SolidAt = (bx: number, by: number, bz: number) => boolean;
+export type FluidAt = (x: number, y: number, z: number) => boolean;
 
 const EPS = 1e-3;
 const GRAVITY = 26; // m/s²
@@ -11,9 +12,18 @@ const RUN_SPEED = 7.5;
 const MOUSE_SENS = 0.0024;
 const PITCH_LIMIT = Math.PI / 2 - 0.05;
 
+// --- Física de água (Fase 1) ---
+const WATER_GRAVITY = 5; // afunda devagar
+const WATER_SINK_MAX = 2.2; // velocidade terminal de afundamento
+const WATER_SWIM_UP = 4.2; // espaço = nadar para cima
+const WATER_SPEED = 2.6; // movimento horizontal mais lento
+const WATER_DRAG = 4; // amortecimento vertical ao entrar
+const WATER_JUMP_OUT = 7.5; // impulso para sair na borda
+
 /**
- * Jogador com colisão AABB voxel própria (doc §3.3: ~100 linhas, sem engine de
- * física) e gravidade. `pos` é o centro dos pés (x,z no centro; y na base).
+ * Jogador com colisão AABB voxel própria (doc §3.3) e gravidade. Fase 1: a água
+ * não é mais sólida — dentro dela o jogador afunda devagar, nada para cima com
+ * espaço e se move mais lento; na superfície, espaço dá impulso para sair.
  */
 export class Player {
   pos = new THREE.Vector3(8, 40, 8);
@@ -21,16 +31,24 @@ export class Player {
   yaw = 0; // rotação horizontal (olhar/mover)
   pitch = 0; // rotação vertical (só câmera)
   onGround = false;
+  inWater = false;
+  headInWater = false;
 
   readonly half = 0.3; // meia-largura
   readonly height = 1.8;
   readonly eyeHeight = 1.62;
 
-  update(dt: number, input: Input, solid: SolidAt): void {
+  update(dt: number, input: Input, solid: SolidAt, fluid: FluidAt): void {
     // --- Olhar ---
     this.yaw -= input.mouseDX * MOUSE_SENS;
     this.pitch -= input.mouseDY * MOUSE_SENS;
     this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch));
+
+    // --- Estado na água (corpo e cabeça) ---
+    this.inWater =
+      fluid(this.pos.x, this.pos.y + 0.4, this.pos.z) ||
+      fluid(this.pos.x, this.pos.y + 1.0, this.pos.z);
+    this.headInWater = fluid(this.pos.x, this.pos.y + this.eyeHeight, this.pos.z);
 
     // --- Direção de movimento relativa ao yaw ---
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
@@ -42,18 +60,31 @@ export class Player {
     if (input.isDown("KeyD")) wish.add(right);
     if (input.isDown("KeyA")) wish.sub(right);
 
-    const speed = input.isDown("ShiftLeft") || input.isDown("ShiftRight") ? RUN_SPEED : WALK_SPEED;
+    const run = input.isDown("ShiftLeft") || input.isDown("ShiftRight");
+    const speed = this.inWater ? WATER_SPEED : run ? RUN_SPEED : WALK_SPEED;
     if (wish.lengthSq() > 0) {
       wish.normalize().multiplyScalar(speed);
     }
     this.vel.x = wish.x;
     this.vel.z = wish.z;
 
-    // --- Gravidade e pulo ---
-    this.vel.y -= GRAVITY * dt;
-    if (this.onGround && input.isDown("Space")) {
-      this.vel.y = JUMP_SPEED;
-      this.onGround = false;
+    // --- Vertical: gravidade/pulo em terra, empuxo/nado na água ---
+    if (this.inWater) {
+      this.vel.y -= WATER_GRAVITY * dt;
+      // Arrasto vertical (suaviza a entrada na água em queda).
+      this.vel.y -= this.vel.y * Math.min(1, WATER_DRAG * dt);
+      if (this.vel.y < -WATER_SINK_MAX) this.vel.y = -WATER_SINK_MAX;
+
+      if (input.isDown("Space")) {
+        // Na superfície (cabeça fora), impulso maior para subir na borda.
+        this.vel.y = this.headInWater ? WATER_SWIM_UP : WATER_JUMP_OUT;
+      }
+    } else {
+      this.vel.y -= GRAVITY * dt;
+      if (this.onGround && input.isDown("Space")) {
+        this.vel.y = JUMP_SPEED;
+        this.onGround = false;
+      }
     }
 
     // --- Integração com colisão, eixo a eixo ---
@@ -113,5 +144,17 @@ export class Player {
 
   eyePosition(): THREE.Vector3 {
     return new THREE.Vector3(this.pos.x, this.pos.y + this.eyeHeight, this.pos.z);
+  }
+
+  /** AABB do jogador intersecta este voxel? (impede colocar bloco em si mesmo) */
+  intersectsBlock(bx: number, by: number, bz: number): boolean {
+    return (
+      bx + 1 > this.pos.x - this.half &&
+      bx < this.pos.x + this.half &&
+      by + 1 > this.pos.y &&
+      by < this.pos.y + this.height &&
+      bz + 1 > this.pos.z - this.half &&
+      bz < this.pos.z + this.half
+    );
   }
 }

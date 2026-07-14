@@ -1,14 +1,20 @@
 import * as THREE from "three";
-import { Chunk, CHUNK_X, CHUNK_Y, CHUNK_Z } from "./chunk.ts";
+import { CHUNK_X, CHUNK_Y, CHUNK_Z } from "./chunk.ts";
 import { Block, isSolid, faceColor, type Face } from "./blocks.ts";
 
 /**
- * Greedy meshing com oclusão de ambiente por vértice (doc §5). Faces expostas de
- * mesmo tipo de bloco e mesma AO são fundidas em quads grandes, reduzindo
- * drasticamente os triângulos. A iluminação (AO + sombreamento direcional "fake")
- * é assada nas cores de vértice, então uma única MeshBasicMaterial desenha o
- * chunk inteiro em 1 draw call, sem sombras dinâmicas.
+ * Greedy meshing com oclusão de ambiente por vértice (doc §5). Fase 1: o mesher
+ * recebe um `sample` que enxerga além das bordas do chunk (via chunkManager),
+ * eliminando faces internas entre chunks vizinhos, e gera DUAS geometrias:
+ * opaca (blocos sólidos) e de água (translúcida, faces só contra o ar).
  */
+
+export type BlockSampler = (x: number, y: number, z: number) => Block;
+
+export interface ChunkGeometries {
+  opaque: THREE.BufferGeometry;
+  water: THREE.BufferGeometry;
+}
 
 const DIMS = [CHUNK_X, CHUNK_Y, CHUNK_Z];
 
@@ -45,14 +51,42 @@ function aoValue(side1: boolean, side2: boolean, corner: boolean): number {
   return 3 - ((side1 ? 1 : 0) + (side2 ? 1 : 0) + (corner ? 1 : 0));
 }
 
-export function buildChunkGeometry(chunk: Chunk): THREE.BufferGeometry {
+interface PassConfig {
+  /** O bloco pertence a esta passada? */
+  inPass(b: Block): boolean;
+  /** A face contra este vizinho é visível? */
+  visibleAgainst(b: Block): boolean;
+  /** Calcular AO (água usa brilho cheio). */
+  useAO: boolean;
+}
+
+const OPAQUE_PASS: PassConfig = {
+  inPass: isSolid,
+  visibleAgainst: (b) => !isSolid(b),
+  useAO: true,
+};
+
+const WATER_PASS: PassConfig = {
+  inPass: (b) => b === Block.Water,
+  visibleAgainst: (b) => b === Block.Air,
+  useAO: false,
+};
+
+export function buildChunkGeometries(sample: BlockSampler): ChunkGeometries {
+  return {
+    opaque: buildPass(sample, OPAQUE_PASS),
+    water: buildPass(sample, WATER_PASS),
+  };
+}
+
+function buildPass(sample: BlockSampler, pass: PassConfig): THREE.BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
   const colors: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
 
-  const solid = (x: number, y: number, z: number) => isSolid(chunk.get(x, y, z));
+  const solid = (x: number, y: number, z: number) => isSolid(sample(x, y, z));
 
   const x = [0, 0, 0];
   const q = [0, 0, 0];
@@ -72,18 +106,36 @@ export function buildChunkGeometry(chunk: Chunk): THREE.BufferGeometry {
       // 1) Constrói a máscara de faces desta fatia.
       for (x[v] = 0; x[v] < H; x[v]++) {
         for (x[u] = 0; x[u] < W; x[u]++) {
-          const aSolid = x[d] >= 0 && solid(x[0], x[1], x[2]);
-          const bSolid = x[d] < DIMS[d] - 1 && solid(x[0] + q[0], x[1] + q[1], x[2] + q[2]);
+          const a = sample(x[0], x[1], x[2]);
+          const b = sample(x[0] + q[0], x[1] + q[1], x[2] + q[2]);
+          const aIn = pass.inPass(a);
+          const bIn = pass.inPass(b);
 
           let cell: MaskCell | null = null;
-          if (aSolid !== bSolid) {
-            const back = !aSolid; // se b é sólido e a é ar → face olha para -d
-            const block = (back
-              ? chunk.get(x[0] + q[0], x[1] + q[1], x[2] + q[2])
-              : chunk.get(x[0], x[1], x[2])) as Block;
-            // Camada "externa" (lado do ar) para amostrar oclusão.
-            const od = back ? x[d] : x[d] + 1;
-            cell = { block, back, ao: computeAO(solid, d, u, v, od, x[u], x[v]) };
+          if (aIn && !bIn && pass.visibleAgainst(b)) {
+            // Face olhando para +d, pertence ao bloco a (dentro do chunk se x[d]>=0).
+            if (x[d] >= 0) {
+              const od = x[d] + 1;
+              cell = {
+                block: a,
+                back: false,
+                ao: pass.useAO
+                  ? computeAO(solid, d, u, v, od, x[u], x[v])
+                  : [3, 3, 3, 3],
+              };
+            }
+          } else if (!aIn && bIn && pass.visibleAgainst(a)) {
+            // Face olhando para -d, pertence ao bloco b.
+            if (x[d] < DIMS[d] - 1) {
+              const od = x[d];
+              cell = {
+                block: b,
+                back: true,
+                ao: pass.useAO
+                  ? computeAO(solid, d, u, v, od, x[u], x[v])
+                  : [3, 3, 3, 3],
+              };
+            }
           }
           mask[x[u] + x[v] * W] = cell;
         }

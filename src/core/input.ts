@@ -1,13 +1,16 @@
 /**
  * Entrada de teclado e mouse (doc §3 /core/input.ts). O mouse usa Pointer Lock
- * para olhar livremente; WASD/espaço/shift para mover. A UI de pausa é tratada
- * no main via eventos de lock.
+ * para olhar livremente; WASD/espaço/shift para mover. Fase 1: cliques do mouse
+ * (quebrar/colocar bloco) e teclas numéricas (seleção da hotbar).
  */
 export class Input {
   private keys = new Set<string>();
   mouseDX = 0;
   mouseDY = 0;
   locked = false;
+
+  /** Cliques ocorridos neste frame (0 = esquerdo, 2 = direito). */
+  private clicks = new Set<number>();
 
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", (e) => {
@@ -27,6 +30,12 @@ export class Input {
       this.mouseDX += e.movementX;
       this.mouseDY += e.movementY;
     });
+
+    this.canvas.addEventListener("mousedown", (e) => {
+      if (this.locked) this.clicks.add(e.button);
+    });
+    // Menu de contexto atrapalharia o clique direito de colocar bloco.
+    this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
   requestLock(): void {
@@ -51,9 +60,15 @@ export class Input {
     return false;
   }
 
-  /** Zera o acumulado de mouse ao fim do frame. */
+  /** Houve clique deste botão neste frame? */
+  clicked(button: number): boolean {
+    return this.clicks.has(button);
+  }
+
+  /** Zera acumulados de mouse ao fim do frame. */
   endFrame(): void {
     this.mouseDX = 0;
     this.mouseDY = 0;
+    this.clicks.clear();
   }
 }

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Voxel Quest — Fase 0</title>
+    <title>Voxel Quest — Fase 1</title>
     <link rel="stylesheet" href="/src/ui/style.css" />
   </head>
   <body>
@@ -11,26 +11,32 @@
     <div id="app">
       <canvas id="game"></canvas>
 
+      <!-- Overlay azulado quando a cabeça está submersa -->
+      <div id="waterOverlay" class="hidden"></div>
+
       <!-- HUD sobreposto -->
       <div id="hud" class="hidden">
         <div id="crosshair"></div>
         <div id="stats"></div>
+        <div id="hotbar"></div>
         <div id="controls">
-          <b>WASD</b> mover &nbsp;·&nbsp; <b>Espaço</b> pular &nbsp;·&nbsp;
-          <b>Shift</b> correr &nbsp;·&nbsp; <b>V</b> 1ª/3ª pessoa &nbsp;·&nbsp;
-          <b>Mouse</b> olhar &nbsp;·&nbsp; <b>ESC</b> liberar cursor
+          <b>WASD</b> mover &nbsp;·&nbsp; <b>Espaço</b> pular/nadar &nbsp;·&nbsp;
+          <b>Shift</b> correr &nbsp;·&nbsp; <b>Clique esq.</b> quebrar &nbsp;·&nbsp;
+          <b>Clique dir.</b> colocar &nbsp;·&nbsp; <b>1–7</b> bloco &nbsp;·&nbsp;
+          <b>V</b> 1ª/3ª pessoa &nbsp;·&nbsp; <b>ESC</b> pausa
         </div>
       </div>
 
-      <!-- Overlay inicial / pausa -->
-      <div id="overlay">
+      <!-- Tela inicial: lista de mundos (conteúdo dinâmico via titleScreen.ts) -->
+      <div id="overlay" class="hidden"></div>
+
+      <!-- Menu de pausa -->
+      <div id="pause" class="hidden">
         <div class="panel">
-          <h1>VOXEL QUEST</h1>
-          <p class="tag">Fase 0 — Fundação</p>
-          <p class="desc">Um chunk voxel com greedy meshing, oclusão de ambiente
-            e câmera em 3ª pessoa com colisão e gravidade.</p>
-          <button id="playBtn">Entrar no mundo</button>
-          <p class="hint">Clique para capturar o mouse. <b>ESC</b> pausa.</p>
+          <h1>Pausa</h1>
+          <p class="desc">Progresso salvo automaticamente.</p>
+          <button id="resumeBtn">Continuar</button>
+          <button id="quitBtn" class="secondary">Salvar e voltar ao menu</button>
         </div>
       </div>
     </div>
