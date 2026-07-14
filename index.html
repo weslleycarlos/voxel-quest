@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voxel Quest — Fase 0</title>
+    <link rel="stylesheet" href="/src/ui/style.css" />
+  </head>
+  <body>
+    <!-- Canvas 3D preenche a tela; toda a UI vive por cima em HTML/CSS -->
+    <div id="app">
+      <canvas id="game"></canvas>
+
+      <!-- HUD sobreposto -->
+      <div id="hud" class="hidden">
+        <div id="crosshair"></div>
+        <div id="stats"></div>
+        <div id="controls">
+          <b>WASD</b> mover &nbsp;·&nbsp; <b>Espaço</b> pular &nbsp;·&nbsp;
+          <b>Shift</b> correr &nbsp;·&nbsp; <b>V</b> 1ª/3ª pessoa &nbsp;·&nbsp;
+          <b>Mouse</b> olhar &nbsp;·&nbsp; <b>ESC</b> liberar cursor
+        </div>
+      </div>
+
+      <!-- Overlay inicial / pausa -->
+      <div id="overlay">
+        <div class="panel">
+          <h1>VOXEL QUEST</h1>
+          <p class="tag">Fase 0 — Fundação</p>
+          <p class="desc">Um chunk voxel com greedy meshing, oclusão de ambiente
+            e câmera em 3ª pessoa com colisão e gravidade.</p>
+          <button id="playBtn">Entrar no mundo</button>
+          <p class="hint">Clique para capturar o mouse. <b>ESC</b> pausa.</p>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/core/main.ts"></script>
+  </body>
+</html>
