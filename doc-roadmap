@@ -1,0 +1,270 @@
+# Documento de Desenvolvimento — "Voxel Quest" (nome provisório)
+
+Jogo de blocos 3D estilo Minecraft com mecânicas de RPG/Arcade/MMORPG: mundo aberto, missões, inimigos com níveis, mineração e drop de itens. Projetado para ser desenvolvido com auxílio de IA, rodar localmente e não exigir GPU dedicada.
+
+---
+
+## 1. Visão Geral
+
+| Item | Definição |
+|---|---|
+| Gênero | Voxel sandbox + Action RPG |
+| Câmera | 3ª pessoa (com opção de 1ª pessoa) |
+| Plataforma | Desktop (Windows/Linux/Mac) via navegador ou executável |
+| Modo | Single-player primeiro; multiplayer local/LAN como fase futura |
+| Público | Casual/mid-core |
+| Loop principal | Explorar → Minerar/Coletar → Combater → Dropar itens → Completar missões → Subir de nível → Acessar áreas mais difíceis |
+
+---
+
+## 2. Stack Recomendada
+
+### Opção A (recomendada): **Three.js + JavaScript/TypeScript no navegador**
+
+É a stack mais fácil para uma IA desenvolver, pelos seguintes motivos:
+
+- Enorme volume de exemplos e documentação — modelos de IA geram código Three.js com alta precisão.
+- Roda em qualquer máquina com navegador; WebGL funciona bem em GPU integrada (Intel/AMD onboard).
+- Zero instalação para testar: um `index.html` + `npm run dev` (Vite) e o jogo abre no browser.
+- Depuração simples (console do navegador), iteração rápida.
+- Existem bibliotecas prontas para voxel: geração de chunks com *greedy meshing* é um padrão bem conhecido.
+
+**Ferramentas da stack A:**
+
+| Camada | Tecnologia |
+|---|---|
+| Engine 3D | Three.js |
+| Linguagem | TypeScript (ou JavaScript puro para simplificar) |
+| Bundler/dev server | Vite |
+| Física simples | Colisão AABB própria (voxel não precisa de engine de física pesada) |
+| Ruído/terreno | `simplex-noise` (npm) |
+| Estado/salvamento | `localStorage` ou IndexedDB (mundo em chunks serializados) |
+| UI (inventário, quests, HUD) | HTML/CSS sobreposto ao canvas (muito mais fácil que UI dentro da engine) |
+| Áudio | Web Audio API ou Howler.js |
+
+### Opção B: **Godot 4 + GDScript**
+
+Boa alternativa se quiser um executável nativo e editor visual. GDScript é simples e a IA lida bem com ele, mas há menos exemplos de voxel do que em Three.js, e o pipeline de chunks dá mais trabalho. Renderizador `Compatibility` (OpenGL) roda leve em GPU fraca.
+
+### Opção C: **Luanti (ex-Minetest) + mods em Lua**
+
+A opção de menor esforço total: a engine voxel já existe, é open-source, leve e roda em praticamente qualquer PC. Você (e a IA) só escrevem **mods em Lua** para adicionar níveis de inimigos, missões, drops e XP. Desvantagem: menos controle sobre visual e identidade própria do jogo.
+
+**Decisão sugerida:** começar com a **Opção A (Three.js)** para ter um jogo próprio, mantendo a Opção C como plano B caso o motor voxel se mostre trabalhoso demais.
+
+---
+
+## 3. Arquitetura do Projeto (Stack A)
+
+```
+/src
+  /core
+    main.ts            # bootstrap, game loop (requestAnimationFrame)
+    input.ts           # teclado/mouse (WASD, pulo, ataque, interação)
+    camera.ts          # câmera 3ª pessoa com colisão
+  /world
+    chunk.ts           # estrutura de chunk 16x16x64 (ou 16x16x128)
+    chunkManager.ts    # carrega/descarrega chunks ao redor do jogador
+    terrainGen.ts      # geração procedural (simplex noise, biomas, minérios)
+    mesher.ts          # greedy meshing -> BufferGeometry
+    blocks.ts          # registro de blocos (id, textura, dureza, drops)
+  /entities
+    player.ts          # movimento, vida, mana, XP, nível
+    mob.ts             # classe base de inimigo
+    mobTypes.ts        # slime, esqueleto, golem... com nível e stats escaláveis
+    spawner.ts         # regras de spawn por bioma/profundidade/nível de área
+    combat.ts          # dano, knockback, morte, drop de loot
+  /items
+    item.ts            # definição de itens (arma, ferramenta, recurso, consumível)
+    inventory.ts       # grid de inventário + hotbar
+    lootTables.ts      # tabelas de drop por mob e por minério
+    crafting.ts        # receitas simples (fase 2)
+  /quests
+    quest.ts           # modelo de missão (objetivos, recompensas, estado)
+    questLog.ts        # rastreamento e persistência
+    npcs.ts            # NPCs que entregam missões
+  /ui
+    hud.ts             # vida, XP, hotbar, minimapa (fase 2)
+    menus.ts           # inventário, diálogo de NPC, quest log
+  /save
+    saveManager.ts     # serialização de mundo, jogador e quests
+    worldRegistry.ts   # lista de mundos salvos: criar, carregar, renomear, excluir
+  /screens
+    titleScreen.ts     # tela inicial: "Novo Mundo" | lista de mundos salvos
+```
+
+**Regras de arquitetura que facilitam o trabalho da IA:**
+
+1. Um arquivo por sistema, com responsabilidade única — a IA edita módulos isolados sem quebrar o resto.
+2. Dados de jogo (blocos, mobs, itens, quests, receitas) em **JSON/objetos declarativos**, nunca hardcoded na lógica. Adicionar conteúdo vira tarefa trivial.
+3. Sem física de terceiros: colisão voxel AABB é ~100 linhas e mais previsível.
+4. UI em HTML por cima do canvas — a IA escreve HTML/CSS muito melhor do que UI imperativa em engine.
+
+---
+
+## 4. Sistemas de Jogo
+
+### 4.1 Mundo e Geração
+
+- Chunks de 16×16×64 blocos gerados por simplex noise 2D (altura) + noise 3D (cavernas).
+- Biomas simples na v1: planície, floresta, deserto, montanha. Cada bioma define blocos de superfície, mobs e nível médio dos inimigos.
+- **Distância = dificuldade**: quanto mais longe do spawn, maior o nível dos mobs e melhores os minérios. Isso cria progressão natural de mundo aberto sem design manual.
+- Minérios por profundidade: carvão (raso) → ferro → ouro → cristal arcano (profundo/distante). Blocos têm `dureza` e exigem ferramenta de tier mínimo.
+
+### 4.2 Mineração e Recursos
+
+- Segurar o botão do mouse quebra o bloco após `dureza / poderDaFerramenta` segundos, com rachaduras progressivas na textura.
+- Drop definido em `lootTables.ts`: bloco → item garantido + chances extras (ex.: cristal arcano tem 10% de dropar fragmento raro).
+- Ferramentas por tier: madeira → pedra → ferro → ouro → arcano. Cada tier minera mais rápido e desbloqueia minérios superiores.
+- Minerar concede um pouco de XP (incentiva o loop mesmo fora de combate).
+
+### 4.3 Inimigos e Níveis
+
+Cada mob tem stats base multiplicados pelo nível:
+
+```
+HP    = hpBase    * (1 + 0.25 * (nivel - 1))
+Dano  = danoBase  * (1 + 0.20 * (nivel - 1))
+XP    = xpBase    * nivel
+```
+
+| Mob | Comportamento | Onde aparece |
+|---|---|---|
+| Slime | persegue e dá dano de contato | superfície, nível 1–5 |
+| Esqueleto | atira flechas a distância | noite/cavernas, nível 3–10 |
+| Aranha | rápida, ataca em grupo | cavernas, nível 5–12 |
+| Golem de Pedra | lento, muito HP, mini-boss | profundezas/montanhas, nível 10–20 |
+| Boss regional | 1 por região distante, mecânica única | arenas, nível 15+ |
+
+- O nível do mob aparece sobre a cabeça com barra de HP (cor muda se for muito acima do nível do jogador).
+- IA de mob simples e barata: máquina de estados (idle → perambular → perseguir → atacar), pathfinding por "steering" direto ao jogador com desvio de blocos — sem A* na v1.
+- Spawn: sorteio periódico em posições válidas ao redor do jogador, com limite de mobs ativos (ex.: 20) para performance.
+
+### 4.4 Combate (Arcade)
+
+- Ataque corpo a corpo com hitbox frontal, knockback e breve invencibilidade após tomar dano (i-frames), estilo arcade.
+- Arco/projéteis como arma de tier médio.
+- Números de dano flutuantes e efeitos de partícula simples (sprites) — barato e satisfatório.
+- Morte do jogador: respawn no último ponto de descanso, perdendo uma fração do XP não consolidado (punição leve).
+
+### 4.5 Loot e Itens
+
+- Mobs derrotados dropam via tabela: recursos comuns + chance de equipamento com raridade (comum/incomum/raro/épico), cores estilo MMORPG.
+- Equipamentos têm stats fixos por raridade + pequena variação aleatória (±10%), dando sensação de "drop bom".
+- Inventário em grade (ex.: 27 slots) + hotbar de 9, arrastar-e-soltar em HTML.
+
+### 4.6 Missões (Quests)
+
+Modelo declarativo — cada quest é um JSON:
+
+```json
+{
+  "id": "q001",
+  "npc": "ferreiro_aldeia",
+  "titulo": "Ferro para a Forja",
+  "objetivos": [{ "tipo": "coletar", "item": "minerio_ferro", "qtd": 10 }],
+  "recompensas": { "xp": 150, "itens": [{ "id": "espada_ferro", "qtd": 1 }] },
+  "requisito": { "nivelMin": 3, "questAnterior": null }
+}
+```
+
+- Tipos de objetivo na v1: `coletar`, `matar` (mob X, N vezes), `explorar` (chegar a coordenada/bioma), `entregar`.
+- NPCs em uma pequena vila no spawn entregam a cadeia inicial de missões (tutorial disfarçado: minerar → craftar → matar → explorar).
+- Quest log na UI com progresso automático via eventos (`onBlockMined`, `onMobKilled`, `onBiomeEntered`).
+
+### 4.7 Progressão do Jogador
+
+- XP de combate, mineração e missões. Curva: `xpParaProximoNivel = 100 * nivel^1.5`.
+- A cada nível: +HP, +1 ponto de atributo (Força = dano corpo a corpo, Vigor = HP, Destreza = velocidade/dano à distância).
+- Nível do jogador funciona como "chave" para regiões distantes (mobs de nível muito superior praticamente forçam o retorno).
+
+### 4.8 Mundos e Saves (estilo Minecraft)
+
+O jogo suporta **múltiplos mundos independentes**, cada um com seu próprio estado completo. Fluxo:
+
+1. **Tela inicial** lista os mundos salvos (nome, data do último jogo, nível do jogador, tempo de jogo) com botões: *Jogar*, *Renomear*, *Excluir* — e um botão **"Criar Novo Mundo"**.
+2. **Criar novo mundo**: o jogador dá um nome e, opcionalmente, uma *seed* (texto que determina a geração do terreno; seed igual = mundo igual). Tudo começa do zero: terreno, jogador nível 1, inventário vazio, quests resetadas.
+3. **Salvamento automático** do mundo ativo: a cada 30 s, ao pausar (ESC) e ao fechar a aba (`beforeunload`).
+
+Estrutura no IndexedDB (um "namespace" por mundo, nada é compartilhado entre eles):
+
+```json
+// registro global de mundos (worldRegistry)
+{ "mundos": [
+  { "id": "w_ab12", "nome": "Meu Reino", "seed": "dragao42",
+    "criadoEm": "...", "ultimoJogo": "...", "versaoSave": 1 }
+]}
+
+// por mundo (chaves prefixadas com o id):
+// w_ab12:player  -> posição, HP, XP, nível, atributos, inventário
+// w_ab12:quests  -> estado de cada missão
+// w_ab12:chunk:x,z -> apenas chunks MODIFICADOS pelo jogador
+```
+
+Detalhe importante de eficiência: chunks intocados **não são salvos** — são regenerados pela seed. Só as diferenças (blocos quebrados/colocados) vão para o disco, o que mantém os saves pequenos mesmo em mundos grandes.
+
+`versaoSave` no registro permite migrar saves antigos quando o formato evoluir, sem corromper mundos existentes.
+
+### 4.9 Elementos "MMORPG" no single-player
+
+- Estrutura de dados e eventos já desacoplados para, no futuro, sincronizar via WebSocket (fase 4).
+- Vila-hub com NPCs, quadro de missões diárias geradas proceduralmente ("mate 15 slimes", "traga 20 carvões") — dá sensação de mundo vivo.
+- Sistema de raridade, níveis visíveis e bosses regionais reproduzem o "feel" de MMO sem servidor.
+
+---
+
+## 5. Performance em Máquinas Fracas
+
+- **Greedy meshing** por chunk: reduz drasticamente o número de triângulos (essencial).
+- Rebuild de mesh apenas do chunk modificado (e vizinhos na borda).
+- Distância de render curta e configurável (6–8 chunks) + névoa para esconder o corte.
+- Texturas em um único **atlas** 256×256 pixel-art (1 draw call por chunk, estilo retrô combina com voxel).
+- Sem sombras dinâmicas na v1 — usar oclusão de ambiente "fake" por vértice (escurecer blocos em cantos), que é barata e bonita.
+- Mobs como modelos de poucos cubos (estilo Minecraft) — geometria mínima.
+- Geração de terreno em **Web Worker** para não travar o frame.
+- Meta: 60 FPS em GPU integrada Intel UHD.
+
+---
+
+## 6. Roadmap por Fases
+
+Cada fase gera um build jogável — ideal para desenvolvimento iterativo com IA.
+
+**Fase 0 — Fundação (1ª milestone)**
+Projeto Vite + Three.js, chunk único renderizado, câmera e movimento WASD com colisão e gravidade.
+
+**Fase 1 — Mundo**
+ChunkManager com carregamento dinâmico, terreno procedural por seed com biomas e cavernas, quebrar/colocar blocos. **Tela inicial com múltiplos mundos**: criar novo (nome + seed), listar, carregar e excluir; autosave em IndexedDB salvando apenas chunks modificados.
+
+**Fase 2 — Sobrevivência básica**
+Inventário + hotbar, dureza de blocos e ferramentas por tier, minérios por profundidade, crafting simples, ciclo dia/noite.
+
+**Fase 3 — RPG**
+Mobs com máquina de estados e níveis, combate com knockback e dano flutuante, XP/nível/atributos do jogador, loot tables e raridades.
+
+**Fase 4 — Missões e mundo vivo**
+Vila com NPCs, sistema de quests declarativo, quest log, missões diárias, primeiro boss regional.
+
+**Fase 5 — Polimento / futuro**
+Áudio, partículas, minimapa, balanceamento; opcionalmente multiplayer LAN com WebSocket (Node.js + `ws`), reaproveitando o sistema de eventos.
+
+---
+
+## 7. Como Trabalhar com IA neste Projeto
+
+1. **Uma fase por vez, um sistema por sessão.** Peça "implemente o mesher greedy do chunk.ts conforme o doc" em vez de "faça o jogo".
+2. **Cole este documento como contexto** no início de cada sessão — mantém arquitetura e nomenclatura consistentes.
+3. **Conteúdo é dado, não código.** Para adicionar mob/item/quest, peça à IA apenas o novo objeto JSON — risco quase zero de regressão.
+4. Mantenha um `TODO.md` com o estado de cada fase para a IA retomar de onde parou.
+5. Teste no navegador a cada mudança; erros de console colados de volta à IA resolvem a maioria dos bugs em uma iteração.
+
+---
+
+## 8. Riscos e Mitigações
+
+| Risco | Mitigação |
+|---|---|
+| Meshing/chunks é a parte mais difícil | É também a mais documentada; se travar, migrar para Luanti (Opção C) mantendo todo o design de RPG como mods Lua |
+| Performance com muitos mobs | Cap de mobs ativos + IA em ticks (atualizar a cada 100 ms, não por frame) |
+| Escopo crescer demais (MMO) | Multiplayer só na Fase 5; arquitetura por eventos já prepara o caminho sem custo agora |
+| Save corrompido | Versionamento do formato de save + salvar por chunk (perda localizada) |
