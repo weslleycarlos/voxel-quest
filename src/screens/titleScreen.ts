@@ -31,7 +31,7 @@ export class TitleScreen {
     this.root.innerHTML = `
       <div class="panel title-panel">
         <h1>VOXEL QUEST</h1>
-        <p class="tag">Fase 2 — Sobrevivência</p>
+        <p class="tag">Fase 4 — Missões e Mundo Vivo</p>
 
         <div class="world-list">
           ${

@@ -63,9 +63,22 @@ Rastreamento por fase para retomar de onde parou (doc-roadmap §6, §7.4).
 - [ ] Esqueleto ataca corpo-a-corpo (sem projéteis)
 - [ ] Sem spawn baseado em luz real (usa hora do dia + profundidade)
 
-## Fase 4 — Missões e mundo vivo
-- [ ] **Introdução com contexto/história**: abertura com texto/legendas no primeiro spawn do mundo (quem você é, onde está, objetivo inicial), pulável — o jogador não deve mais "aparecer no meio do nada" (doc §6 Fase 4)
-- [ ] Vila, NPCs, quests declarativas, quest log, boss regional (diálogos reutilizam o sistema de legendas da intro)
+## Fase 4 — Missões e mundo vivo ✅
+- [x] **Introdução com contexto/história**: abertura com 4 legendas sequenciais no primeiro spawn do mundo (contexto, objetivo, direção da vila), puláveis com clique — salva `introShown` no player save
+- [x] **Vila no spawn**: estruturas de 3 casas + caminho construídas via `setBlock` no chunk de spawn (`quests/village.ts`)
+- [x] **NPCs**: 3 personagens (Ancião, Ferreiro, Guarda) com modelos de cubos, nomes flutuantes e diálogos por estado da quest (`quests/npcs.ts`)
+- [x] **Diálogos de NPC**: interação por proximidade (tecla F) mostra legendas sequenciais; reutiliza o mesmo sistema da introdução
+- [x] **Sistema de quests declarativo**: 5 quests tutorial + boss (`quests/quest.ts`) com objetivos `collect/kill/craft/talk/explore`
+- [x] **Quest log + HUD**: painel aberto com tecla L, lista missões ativas com progresso em tempo real (`ui/hud.ts`)
+- [x] **Progressão automática**: eventos `blockMined`, `mobKilled`, `itemCrafted`, `npcTalk` avançam objetivos; recompensas (XP/itens) entregues ao completar
+- [x] **Boss regional**: Golem Ancião (`ancient_golem`) posicionado fixo a ~180m ao norte, com 80 HP, 8 de dano e loot de cristais
+- [x] **Persistência**: estado de quests (`questLogSave`) e `introShown` salvos no IndexedDB junto com o jogador
+- [x] **Missões diárias**: geração procedural (`generateDaily`) com objetivos aleatórios
+
+### Pendências conhecidas (Fase 4)
+- [ ] NPCs não têm IA de movimento (estáticos)
+- [ ] Sem mapa/minimapa apontando a vila
+- [ ] Boss não tem mecânica especial além de stats elevados
 
 ## Fase 5 — Polimento / futuro
 - [ ] Áudio, partículas, minimapa, balanceamento, multiplayer LAN opcional

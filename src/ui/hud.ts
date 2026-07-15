@@ -2,6 +2,7 @@ import type { Player } from "../entities/player.ts";
 import { Inventory, HOTBAR_SIZE, type ItemStack } from "../items/inventory.ts";
 import { ITEMS } from "../items/item.ts";
 import { CRAFTING_GRID_SIZE, findRecipe, canCraft, craftInGrid } from "../items/crafting.ts";
+import type { QuestState } from "../quests/quest.ts";
 
 /**
  * HUD em HTML sobreposto ao canvas (doc §3, regra 4). Fase 2: hotbar de itens
@@ -33,11 +34,38 @@ export class Hud {
   /** Reengaja o pointer lock no canvas do jogo (injetado pelo main). */
   private relock?: () => void;
 
+  /** Elemento que segue o mouse mostrando o item segurado (heldMouse). */
+  private heldCursor: HTMLElement;
+  private questLogEl: HTMLElement;
+  private questLogOpen = false;
+  private questStates: QuestState[] = [];
+
   constructor(inventory: Inventory, relock?: () => void) {
     this.inventory = inventory;
     this.relock = relock;
     this.inventoryEl.addEventListener("mousedown", (e) => this.onInventoryMouse(e));
     this.inventoryEl.addEventListener("contextmenu", (e) => e.preventDefault());
+    this.inventoryEl.addEventListener("mousemove", (e) => this.onInventoryMove(e));
+    this.heldCursor = document.createElement("div");
+    this.heldCursor.className = "held-cursor";
+    this.heldCursor.style.cssText =
+      "position:fixed;pointer-events:none;z-index:9999;display:none;" +
+      "width:54px;height:54px;flex-direction:column;align-items:center;" +
+      "justify-content:center;gap:2px;padding:4px;border-radius:8px;" +
+      "background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.25);" +
+      "box-shadow:0 4px 12px rgba(0,0,0,0.4);backdrop-filter:blur(2px);";
+    document.body.appendChild(this.heldCursor);
+
+    this.questLogEl = document.createElement("div");
+    this.questLogEl.className = "quest-log-overlay hidden";
+    this.questLogEl.style.cssText =
+      "position:fixed;inset:0;display:none;align-items:center;justify-content:center;" +
+      "z-index:9;background:rgba(6,9,13,0.55);";
+    this.questLogEl.addEventListener("click", (e) => {
+      if (e.target === this.questLogEl) this.toggleQuestLog();
+    });
+    document.body.appendChild(this.questLogEl);
+
     this.renderInventory();
     this.renderHotbar();
   }
@@ -71,6 +99,9 @@ export class Hud {
     this.onCloseCallback = cb;
   }
 
+  /** Callback quando um item é craftado com sucesso. */
+  onCraft?: (itemId: string, count: number) => void;
+
   show(): void {
     this.hud.classList.remove("hidden");
   }
@@ -78,6 +109,64 @@ export class Hud {
     this.hud.classList.add("hidden");
     this.inventoryOpen = false;
     this.inventoryEl.classList.add("hidden");
+    this.heldCursor.style.display = "none";
+    this.questLogOpen = false;
+    this.questLogEl.classList.add("hidden");
+    this.questLogEl.style.display = "none";
+  }
+
+  /** Abre/fecha o painel de quest log (Fase 4). */
+  toggleQuestLog(): void {
+    this.questLogOpen = !this.questLogOpen;
+    this.questLogEl.classList.toggle("hidden", !this.questLogOpen);
+    this.questLogEl.style.display = this.questLogOpen ? "flex" : "none";
+    if (this.questLogOpen) {
+      this.renderQuestLog();
+      document.exitPointerLock?.();
+    } else {
+      this.relock?.();
+    }
+  }
+
+  isQuestLogOpen(): boolean {
+    return this.questLogOpen;
+  }
+
+  setQuestStates(states: QuestState[]): void {
+    this.questStates = states;
+    if (this.questLogOpen) this.renderQuestLog();
+  }
+
+  private renderQuestLog(): void {
+    const list = this.questStates.length
+      ? this.questStates
+          .map((s) => {
+            const objs = s.def.objectives
+              .map((obj, i) => {
+                const prog = s.progress[i] ?? 0;
+                const done = prog >= obj.amount;
+                return `<li class="${done ? "done" : ""}">${obj.type === "collect" ? "Colete" : obj.type === "kill" ? "Derrote" : obj.type === "craft" ? "Crie" : obj.type === "explore" ? "Explore" : "Converse"} ${obj.amount}x ${obj.target} — ${prog}/${obj.amount}</li>`;
+              })
+              .join("");
+            return `
+              <div class="quest-entry">
+                <h3>${s.def.title}</h3>
+                <p>${s.def.description}</p>
+                <ul>${objs}</ul>
+              </div>
+            `;
+          })
+          .join("")
+      : `<p class="empty">Nenhuma missão ativa. Fale com os NPCs da vila!</p>`;
+
+    this.questLogEl.innerHTML = `
+      <div class="panel quest-panel">
+        <h2>Missões</h2>
+        <div class="quest-list">${list}</div>
+        <button id="closeQuestLog" class="secondary">Fechar (L)</button>
+      </div>
+    `;
+    this.questLogEl.querySelector("#closeQuestLog")?.addEventListener("click", () => this.toggleQuestLog());
   }
 
   /** Atualiza visual da hotbar e seleção. */
@@ -214,6 +303,30 @@ export class Hud {
     </div>`;
   }
 
+  private onInventoryMove(e: MouseEvent): void {
+    if (!this.heldMouse) {
+      this.heldCursor.style.display = "none";
+      return;
+    }
+    this.heldCursor.style.display = "flex";
+    this.heldCursor.style.left = `${e.clientX + 14}px`;
+    this.heldCursor.style.top = `${e.clientY + 14}px`;
+  }
+
+  private renderHeldCursor(): void {
+    if (!this.heldMouse) {
+      this.heldCursor.style.display = "none";
+      this.heldCursor.innerHTML = "";
+      return;
+    }
+    const def = ITEMS[this.heldMouse.id];
+    this.heldCursor.innerHTML = `
+      <span class="swatch" style="width:28px;height:28px;border-radius:4px;border:1px solid rgba(0,0,0,0.4);background:${def.color};"></span>
+      ${this.heldMouse.count > 1 ? `<span style="position:absolute;bottom:3px;right:5px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.8);">${this.heldMouse.count}</span>` : ""}
+    `;
+    this.heldCursor.style.display = "flex";
+  }
+
   private onInventoryMouse(e: MouseEvent): void {
     const target = (e.target as HTMLElement).closest<HTMLElement>(".slot");
     if (!target) return;
@@ -224,6 +337,7 @@ export class Hud {
     if (e.button === 0) {
       if (isResult) {
         this.onCraftResult();
+        this.renderHeldCursor();
         return;
       }
       if (!type) return;
@@ -234,6 +348,7 @@ export class Hud {
     }
     this.renderInventory();
     this.renderHotbar();
+    this.renderHeldCursor();
   }
 
   private handleLeftClick(type: "inventory" | "crafting", index: number): void {
@@ -298,6 +413,7 @@ export class Hud {
       this.craftingGrid = this.craftingGrid.map((s) => (s && s.count > 0 ? s : null));
       this.renderInventory();
       this.renderHotbar();
+      this.onCraft?.(recipe.result.id, recipe.result.count);
     }
   }
 
@@ -306,6 +422,7 @@ export class Hud {
     if (this.heldMouse) {
       this.inventory.add(this.heldMouse.id, this.heldMouse.count);
       this.heldMouse = null;
+      this.renderHeldCursor();
     }
     for (const s of this.craftingGrid) {
       if (s) {

@@ -1,6 +1,7 @@
 import { dbGet, dbGetPrefix, dbSetMany } from "./db.ts";
 import { touchWorld } from "./worldRegistry.ts";
 import type { InventorySave } from "../items/inventory.ts";
+import type { QuestLogSave } from "../quests/questLog.ts";
 
 /**
  * Serialização do mundo ativo (doc §3 /save/saveManager.ts, §4.8). Salva o
@@ -21,6 +22,10 @@ export interface PlayerSave {
     level: number;
     xp: number;
   };
+  /** Fase 4: quests e estado do mundo vivo. */
+  quests?: QuestLogSave;
+  /** Se a introdução já foi exibida (primeira vez no mundo). */
+  introShown?: boolean;
 }
 
 export interface WorldSave {

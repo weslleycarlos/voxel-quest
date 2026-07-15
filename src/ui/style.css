@@ -542,3 +542,80 @@ body {
   pointer-events: none;
   z-index: 1;
 }
+
+/* ---------- Legendas / Introdução (Fase 4) ---------- */
+.caption-box {
+  max-width: min(80vw, 680px);
+  padding: 18px 24px;
+  background: rgba(6, 9, 13, 0.72);
+  border: 1px solid rgba(126, 200, 80, 0.25);
+  border-radius: 12px;
+  backdrop-filter: blur(4px);
+  animation: caption-in 0.25s ease;
+}
+.caption-text {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #eef2e9;
+  text-align: center;
+}
+.caption-hint {
+  display: block;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #8b9584;
+  text-align: center;
+}
+@keyframes caption-in {
+  from { opacity: 0; transform: translateY(12px); }
+}
+
+/* ---------- Quest Log (Fase 4) ---------- */
+.quest-panel {
+  width: min(90vw, 480px);
+  text-align: left;
+  padding: 28px 32px;
+}
+.quest-panel h2 {
+  margin-bottom: 16px;
+  font-size: 22px;
+  color: var(--accent);
+  text-align: center;
+}
+.quest-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.quest-entry {
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+.quest-entry h3 {
+  font-size: 15px;
+  color: #cfeeb0;
+  margin-bottom: 4px;
+}
+.quest-entry p {
+  font-size: 13px;
+  color: #c3ccbb;
+  margin-bottom: 8px;
+}
+.quest-entry ul {
+  list-style: none;
+  padding: 0;
+  font-size: 13px;
+  color: #dfe6d6;
+}
+.quest-entry li {
+  padding: 2px 0;
+}
+.quest-entry li.done {
+  color: var(--accent);
+  text-decoration: line-through;
+  opacity: 0.7;
+}

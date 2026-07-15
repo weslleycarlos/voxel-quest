@@ -113,9 +113,12 @@ export function canCraft(recipe: Recipe, grid: (ItemStack | null)[], inventory: 
     if ((available.get(id) ?? 0) < qty) return false;
   }
 
-  // Verifica se há espaço para o resultado.
+  // Verifica se há espaço para o resultado (deep-clone para não alterar o real).
   const testInv = new Inventory();
-  testInv.fromSave({ slots: inventory.slots.slice(), selected: inventory.selected });
+  testInv.fromSave({
+    slots: inventory.slots.map((s) => (s ? { id: s.id, count: s.count } : null)),
+    selected: inventory.selected,
+  });
   const leftover = testInv.add(recipe.result.id, recipe.result.count);
   return leftover === 0;
 }

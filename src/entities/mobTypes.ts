@@ -44,6 +44,32 @@ export interface MobDef {
   lootTable: string;
 }
 
+/** Boss regional: Golem Ancião (Fase 4). Spawn único em coordenada fixa. */
+export const ANCIENT_GOLEM: MobDef = {
+  id: "ancient_golem",
+  name: "Golem Ancião",
+  half: 0.55,
+  height: 2.4,
+  parts: [
+    { size: [0.4, 0.9, 0.42], pos: [-0.28, 0.45, 0], color: 0x3a3f45, leg: true },
+    { size: [0.4, 0.9, 0.42], pos: [0.28, 0.45, 0], color: 0x3a3f45, leg: true },
+    { size: [1.0, 0.85, 0.65], pos: [0, 1.35, 0], color: 0x2c3036 },
+    { size: [0.6, 0.5, 0.55], pos: [0, 2.05, 0], color: 0x1e2228 },
+    { size: [0.14, 0.1, 0.06], pos: [-0.16, 2.1, 0.28], color: 0xff4040 },
+    { size: [0.14, 0.1, 0.06], pos: [0.16, 2.1, 0.28], color: 0xff4040 },
+  ],
+  baseHp: 80,
+  baseDamage: 8,
+  baseXp: 200,
+  speed: 1.4,
+  aggroRange: 18,
+  attackRange: 2.4,
+  attackCooldown: 2.2,
+  hostile: true,
+  spawn: { underground: true, weight: 0 }, // não spawna naturalmente
+  lootTable: "golem",
+};
+
 export const MOB_TYPES: MobDef[] = [
   {
     id: "slime",

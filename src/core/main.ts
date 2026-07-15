@@ -17,15 +17,21 @@ import { Inventory, HOTBAR_SIZE } from "../items/inventory.ts";
 import { ItemId, ITEMS, blockDrop } from "../items/item.ts";
 import { DayNightCycle, formatTime } from "../world/dayNight.ts";
 import { Spawner } from "../entities/spawner.ts";
-import { scaledXp } from "../entities/mobTypes.ts";
-import type { Mob } from "../entities/mob.ts";
+import { Mob } from "../entities/mob.ts";
 import {
   FloatingTextManager,
   rollPlayerDamage,
   PLAYER_ATTACK_COOLDOWN,
   PLAYER_ATTACK_RANGE,
 } from "../entities/combat.ts";
+import { scaledXp, ANCIENT_GOLEM } from "../entities/mobTypes.ts";
 import { rollLoot, RARITY_COLORS } from "../items/lootTables.ts";
+
+// --- Fase 4: Mundo vivo, quests, NPCs, introdução ---
+import { CaptionSystem } from "../quests/intro.ts";
+import { QuestLog } from "../quests/questLog.ts";
+import { type NpcInstance, placeVillageNpcs, interactNpc } from "../quests/npcs.ts";
+import { buildVillage } from "../quests/village.ts";
 
 /**
  * Bootstrap e game loop (doc §3 /core/main.ts). Fase 1 — Mundo:
@@ -57,6 +63,7 @@ const camera = new THREE.PerspectiveCamera(
   0.05,
   600
 );
+scene.add(camera); // necessário para renderizar filhos (viewmodel) da câmera
 
 // --- Iluminação suave (sem sombras dinâmicas, doc §5) ---
 const hemi = new THREE.HemisphereLight(0xdff1ff, 0x556644, 0.9);
@@ -99,6 +106,9 @@ const cameraController = new CameraController(camera);
 const input = new Input(canvas);
 const inventory = new Inventory();
 const hud = new Hud(inventory, () => input.requestLock());
+hud.onCraft = (itemId) => {
+  questLog.handleEvent({ type: "itemCrafted", target: itemId });
+};
 
 // --- Estado do mundo ativo ---
 let world: ChunkManager | null = null;
@@ -115,6 +125,13 @@ let miningProgress = 0;
 let spawner: Spawner | null = null;
 const floatingText = new FloatingTextManager(scene);
 let attackCooldown = 0;
+
+// --- Fase 4: quests, NPCs, introdução e boss ---
+const captions = new CaptionSystem();
+const questLog = new QuestLog();
+let villageNpcs: NpcInstance[] = [];
+let bossMob: Mob | null = null;
+let introShown = false;
 
 // --- Telas ---
 const overlay = document.getElementById("overlay")!;
@@ -192,13 +209,52 @@ async function startWorld(meta: WorldMeta): Promise<void> {
     player.pos.y = world.surfaceY(player.pos.x, player.pos.z);
   }
 
+  // Fase 4: constrói vila e posiciona NPCs perto do spawn.
+  buildVillage(world);
+  villageNpcs = placeVillageNpcs(scene);
+
+  // Fase 4: carrega quests e aceita iniciais.
+  questLog.fromSave(save.player?.quests);
+  questLog.onUpdate = () => hud.setQuestStates(questLog.getActive());
+  questLog.onToast = (msg) => hud.toast(msg, "#cfeeb0");
+  questLog.autoAccept();
+  hud.setQuestStates(questLog.getActive());
+
+  // Fase 4: introdução na primeira vez.
+  introShown = save.player?.introShown ?? false;
+  if (!introShown) {
+    playing = true; // precisa estar true para o frame rodar
+    captions.play(
+      [
+        "Você acorda em uma terra fragmentada, onde a luz do sol mal toca as ruínas antigas...",
+        "Era uma vez um reino próspero, até que criaturas de pedra e sombra tomaram as minas.",
+        "A vila ao leste precisa de um herói. Sua jornada começa agora.",
+        "Objetivo: encontre a vila e fale com o Ancião.",
+      ],
+      () => {
+        introShown = true;
+        input.requestLock();
+      }
+    );
+  } else {
+    input.requestLock();
+  }
+
+  // Fase 4: boss regional fixo (Golem Ancião ao norte, ~180m).
+  const bossPos = new THREE.Vector3(player.pos.x, 0, player.pos.z - 180);
+  world.loadAround(bossPos.x, bossPos.z, 2);
+  bossPos.y = world.surfaceY(bossPos.x, bossPos.z);
+  if (bossPos.y > 0) {
+    bossMob = new Mob(ANCIENT_GOLEM, 5, bossPos);
+    scene.add(bossMob.group);
+  }
+
   spawner = new Spawner(scene, world);
   attackCooldown = 0;
   autosaveTimer = 0;
   miningTarget = null;
   miningProgress = 0;
   playing = true;
-  input.requestLock();
   hud.show();
   hud.updateHotbar();
 }
@@ -214,6 +270,14 @@ function stopWorld(): void {
   generator = null;
   highlight.visible = false;
   hud.hide();
+  captions.dispose();
+  for (const npc of villageNpcs) scene.remove(npc.group);
+  villageNpcs = [];
+  if (bossMob) {
+    scene.remove(bossMob.group);
+    bossMob.dispose();
+    bossMob = null;
+  }
 }
 
 async function persist(): Promise<void> {
@@ -224,6 +288,8 @@ async function persist(): Promise<void> {
     pitch: player.pitch,
     inventory: inventory.toSave(),
     stats: { hp: player.hp, maxHp: player.maxHp, level: player.level, xp: player.xp },
+    quests: questLog.toSave(),
+    introShown,
   };
   await saveWorld(activeWorld.id, playerSave, world.modifiedData);
 }
@@ -240,8 +306,13 @@ function handleBlockInteraction(dt: number): void {
     -Math.cos(player.yaw) * cp
   );
   // Fase 3: mob na mira tem prioridade sobre mineração no clique esquerdo.
+  // Fase 4: inclui o boss regional no raycast.
   const eye = player.eyePosition();
-  const mobTarget = spawner?.raycast(eye, dir, PLAYER_ATTACK_RANGE) ?? null;
+  let mobTarget = spawner?.raycast(eye, dir, PLAYER_ATTACK_RANGE) ?? null;
+  if (!mobTarget && bossMob && !bossMob.dead) {
+    const t = bossMob.raycast(eye, dir, PLAYER_ATTACK_RANGE);
+    if (t !== null) mobTarget = bossMob;
+  }
   if (mobTarget) {
     resetMining();
     if (input.isMouseDown(0) && attackCooldown <= 0) {
@@ -331,11 +402,12 @@ function breakBlock(x: number, y: number, z: number, blockId: Block): void {
   const drop = blockDrop(blockId);
   if (drop) {
     const leftover = inventory.add(drop, 1);
-    // Se não couber, "dropa no chão" (perdido na Fase 2; Fase 3 pode ter entidades).
     if (leftover > 0) {
       // Futuro: criar item entity no mundo.
     }
     hud.updateHotbar();
+    // Fase 4: evento de coleta para quests.
+    questLog.handleEvent({ type: "blockMined", target: drop });
   }
   world.setBlock(x, y, z, Block.Air);
 }
@@ -382,6 +454,9 @@ function onMobKilled(mob: Mob): void {
     }
   }
   hud.updateHotbar();
+
+  // Fase 4: evento de morte de mob para quests.
+  questLog.handleEvent({ type: "mobKilled", target: mob.def.id });
 }
 
 /** Mob acertou o jogador (callback do spawner). */
@@ -423,8 +498,16 @@ function frame(now: number): void {
       }
     }
 
-    if (input.locked && !hud.isInventoryOpen()) {
+    if (input.locked && !hud.isInventoryOpen() && !hud.isQuestLogOpen()) {
+      if (input.clicked(0)) playerModel.triggerSwing();
+      if (input.pressed("KeyF")) {
+        if (interactNpc(player.pos, villageNpcs, questLog, captions)) {
+          // NPC abriu diálogo: libera pointer lock para clicar nas legendas.
+          document.exitPointerLock?.();
+        }
+      }
       if (input.pressed("KeyV")) cameraController.toggle();
+      if (input.pressed("KeyL")) hud.toggleQuestLog();
 
       // Seleção da hotbar (teclas 1–9).
       for (let i = 0; i < HOTBAR_SIZE; i++) {
@@ -464,6 +547,20 @@ function frame(now: number): void {
       },
       isNight
     );
+    // Fase 4: boss regional (update separado, não spawna naturalmente).
+    if (bossMob && !bossMob.dead) {
+      bossMob.update(dt, {
+        playerPos: player.pos,
+        playerAlive: player.hp > 0,
+        solid: world.solidAt,
+        attackPlayer: onPlayerAttacked,
+      });
+      if (bossMob.finished) {
+        scene.remove(bossMob.group);
+        bossMob.dispose();
+        bossMob = null;
+      }
+    }
     floatingText.update(dt);
 
     dayNight.update(dt);
@@ -480,6 +577,12 @@ function frame(now: number): void {
     // Posiciona/anima o modelo do jogador (oculto em 1ª pessoa).
     playerModel.update(player, dt);
     playerModel.group.visible = !cameraController.firstPerson;
+    playerModel.setHeldItem(
+      inventory.hand,
+      scene,
+      camera,
+      cameraController.firstPerson
+    );
 
     // Autosave periódico (doc §4.8).
     autosaveTimer += dt;
