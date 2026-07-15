@@ -132,6 +132,10 @@ const questLog = new QuestLog();
 let villageNpcs: NpcInstance[] = [];
 let bossMob: Mob | null = null;
 let introShown = false;
+// Rastreio do objetivo "explore": ponto inicial e último bioma visitado.
+const spawnPoint = new THREE.Vector3();
+let exploredSpawn = false;
+let lastBiome = "";
 
 // --- Telas ---
 const overlay = document.getElementById("overlay")!;
@@ -211,14 +215,20 @@ async function startWorld(meta: WorldMeta): Promise<void> {
 
   // Fase 4: constrói vila e posiciona NPCs perto do spawn.
   buildVillage(world);
-  villageNpcs = placeVillageNpcs(scene);
+  villageNpcs = placeVillageNpcs(scene, world);
 
-  // Fase 4: carrega quests e aceita iniciais.
+  // Fase 4: carrega quests, aceita iniciais e gera a diária de hoje.
   questLog.fromSave(save.player?.quests);
   questLog.onUpdate = () => hud.setQuestStates(questLog.getActive());
   questLog.onToast = (msg) => hud.toast(msg, "#cfeeb0");
   questLog.autoAccept();
+  questLog.refreshDaily(player.level);
   hud.setQuestStates(questLog.getActive());
+
+  // Objetivo "explore spawn": andar ~20 blocos a partir do ponto inicial.
+  spawnPoint.copy(player.pos);
+  exploredSpawn = false;
+  lastBiome = "";
 
   // Fase 4: introdução na primeira vez.
   introShown = save.player?.introShown ?? false;
@@ -228,8 +238,8 @@ async function startWorld(meta: WorldMeta): Promise<void> {
       [
         "Você acorda em uma terra fragmentada, onde a luz do sol mal toca as ruínas antigas...",
         "Era uma vez um reino próspero, até que criaturas de pedra e sombra tomaram as minas.",
-        "A vila ao leste precisa de um herói. Sua jornada começa agora.",
-        "Objetivo: encontre a vila e fale com o Ancião.",
+        "A vila onde você despertou precisa de um herói. Sua jornada começa agora.",
+        "Objetivo: fale com o Ancião da Vila (aproxime-se e pressione F).",
       ],
       () => {
         introShown = true;
@@ -270,7 +280,7 @@ function stopWorld(): void {
   generator = null;
   highlight.visible = false;
   hud.hide();
-  captions.dispose();
+  captions.hide();
   for (const npc of villageNpcs) scene.remove(npc.group);
   villageNpcs = [];
   if (bossMob) {
@@ -565,11 +575,23 @@ function frame(now: number): void {
 
     dayNight.update(dt);
     world.update(player.pos.x, player.pos.z);
+
+    // Fase 4: eventos de exploração para quests ("spawn" e mudança de bioma).
+    const biome = generator!.biomeAt(Math.floor(player.pos.x), Math.floor(player.pos.z));
+    if (!exploredSpawn && player.pos.distanceTo(spawnPoint) > 20) {
+      exploredSpawn = true;
+      questLog.handleEvent({ type: "biomeEntered", target: "spawn" });
+    }
+    if (biome !== lastBiome) {
+      lastBiome = biome;
+      questLog.handleEvent({ type: "biomeEntered", target: biome });
+    }
+
     hud.update(
       dt,
       player,
       cameraController.firstPerson,
-      generator!.biomeAt(Math.floor(player.pos.x), Math.floor(player.pos.z)),
+      biome,
       dayNight.timeOfDay,
       formatTime(dayNight.timeOfDay)
     );

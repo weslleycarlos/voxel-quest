@@ -3,7 +3,7 @@
  * Missões com objetivos, progressão automática via eventos, recompensas.
  */
 
-import { ItemId } from "../items/item.ts";
+import { ItemId, ITEMS } from "../items/item.ts";
 
 export type QuestId = string;
 
@@ -73,7 +73,7 @@ export const QUESTS: Record<QuestId, QuestDef> = {
     description: "Derrote 3 Slimes que ameaçam a vila.",
     requires: { quest: "tutorial_craft" },
     objectives: [{ type: "kill", target: "slime", amount: 3 }],
-    reward: { xp: 100, items: [{ id: ItemId.SwordWood, count: 1 }] },
+    reward: { xp: 100, items: [{ id: ItemId.SwordStone, count: 1 }] },
   },
   boss_ancient: {
     id: "boss_ancient",
@@ -85,7 +85,30 @@ export const QUESTS: Record<QuestId, QuestDef> = {
   },
 };
 
-/** Gera uma missão diária procedural. */
+/** Nomes de mobs para exibição (mobId → nome). */
+const MOB_NAMES: Record<string, string> = {
+  slime: "Slime",
+  skeleton: "Esqueleto",
+  spider: "Aranha",
+  stone_golem: "Golem de Pedra",
+  ancient_golem: "Golem Ancião",
+};
+
+/** Nome legível do alvo de um objetivo (item, mob, bioma ou local). */
+export function targetName(obj: QuestObjective): string {
+  if (obj.type === "kill") return MOB_NAMES[obj.target] ?? obj.target;
+  if (obj.type === "collect" || obj.type === "craft") {
+    return ITEMS[obj.target as ItemId]?.name ?? obj.target;
+  }
+  return obj.target;
+}
+
+/** Id da missão diária de hoje — muda a cada dia real, forçando regeneração. */
+export function todayDailyId(): string {
+  return `daily_${new Date().toISOString().slice(0, 10)}`;
+}
+
+/** Gera a missão diária procedural de hoje. */
 export function generateDaily(level: number): QuestDef {
   const targets = [
     { type: "collect" as const, target: ItemId.Stone, amount: 20 },
@@ -95,10 +118,11 @@ export function generateDaily(level: number): QuestDef {
     { type: "craft" as const, target: ItemId.Plank, amount: 10 },
   ];
   const pick = targets[Math.floor(Math.random() * targets.length)];
+  const verb = pick.type === "collect" ? "colete" : pick.type === "kill" ? "derrote" : "crie";
   return {
-    id: `daily_${Date.now()}`,
+    id: todayDailyId(),
     title: "Missão Diária",
-    description: `Complete o objetivo: ${pick.type === "collect" ? "colete" : pick.type === "kill" ? "derrote" : "crie"} ${pick.amount}x ${pick.target}.`,
+    description: `Complete o objetivo: ${verb} ${pick.amount}x ${targetName(pick)}.`,
     objectives: [{ type: pick.type, target: pick.target, amount: pick.amount }],
     reward: { xp: 30 + level * 10 },
     daily: true,

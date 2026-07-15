@@ -75,10 +75,26 @@ Rastreamento por fase para retomar de onde parou (doc-roadmap §6, §7.4).
 - [x] **Persistência**: estado de quests (`questLogSave`) e `introShown` salvos no IndexedDB junto com o jogador
 - [x] **Missões diárias**: geração procedural (`generateDaily`) com objetivos aleatórios
 
+### Revisão pós-Fase 4 (bugs corrigidos)
+- [x] **Cadeia de quests travada**: `intro_welcome` exigia o evento `biomeEntered("spawn")`, que nunca era emitido — nenhuma quest seguinte destravava. Agora o evento dispara ao andar ~20 blocos do spawn, e mudanças de bioma também emitem `biomeEntered` (para futuras quests de exploração).
+- [x] **NPCs enterrados e inalcançáveis**: eram posicionados com `y=0` (superfície fica em y≈30+), então nunca apareciam e a checagem de distância 3D da tecla F nunca passava. Agora ficam sobre `surfaceY` e a interação usa distância horizontal.
+- [x] **Legendas quebravam no 2º mundo**: `stopWorld()` chamava `captions.dispose()` num objeto global; ao entrar em outro mundo o overlay não existia mais. Substituído por `captions.hide()`.
+- [x] **Quests vazavam entre mundos**: `fromSave(undefined)` retornava sem limpar o estado do mundo anterior — mundo novo herdava progresso do antigo. `fromSave` agora sempre limpa.
+- [x] **Missões diárias mortas**: `refreshDaily` nunca era chamado, e a diária não sobrevivia ao save (id gerado não existia em `QUESTS`). Agora é gerada no início do mundo, salva por inteiro (`daily` no save), tem id por data real e é descartada/regerada quando o dia vira.
+- [x] **Evento `npcTalk` nunca emitido** ao falar com NPC — objetivos `talk` eram impossíveis.
+- [x] Recompensa duplicada: `tutorial_kill` dava espada de madeira, que o jogador já recebe no kit inicial → agora dá espada de pedra.
+- [x] Quest log e diária mostravam ids crus (`stone`, `slime`) → nomes legíveis via `targetName()`.
+- [x] Diálogos `_before` de quests ativas eram inalcançáveis (só `_during` era buscado) → fallback `_during` → `_before`.
+- [x] Texto da intro dizia "vila ao leste", mas a vila é construída no próprio spawn → texto corrigido e instrui a tecla F.
+
 ### Pendências conhecidas (Fase 4)
 - [ ] NPCs não têm IA de movimento (estáticos)
 - [ ] Sem mapa/minimapa apontando a vila
 - [ ] Boss não tem mecânica especial além de stats elevados
+- [ ] Objetivo `collect` conta blocos minerados, não itens no inventário (não há "entrega" real ao NPC)
+- [ ] Vila é reconstruída via `setBlock` a cada carga do mundo (marca chunks como modificados; idempotente, mas incha o save)
+- [ ] Boss não persiste: renasce com HP cheio ao recarregar o mundo (quest completa evita re-farm)
+- [ ] Tochas da vila são blocos de minério de ouro (placeholder)
 
 ## Fase 5 — Polimento / futuro
 - [ ] Áudio, partículas, minimapa, balanceamento, multiplayer LAN opcional

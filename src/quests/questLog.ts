@@ -3,7 +3,7 @@
  * Mantém estado ativo/completo, processa eventos do jogo e avança objetivos.
  */
 
-import { QuestId, QuestDef, QuestState, QUESTS, generateDaily } from "./quest.ts";
+import { QuestId, QuestDef, QuestState, QUESTS, generateDaily, todayDailyId } from "./quest.ts";
 // ItemId import removido — não usado diretamente neste arquivo
 
 export interface QuestEvent {
@@ -15,8 +15,8 @@ export interface QuestEvent {
 export interface QuestLogSave {
   active: { id: QuestId; progress: number[] }[];
   completed: QuestId[];
-  dailyId?: string;
-  dailyProgress?: number[];
+  /** Diária ativa salva por inteiro (o def é gerado, não existe em QUESTS). */
+  daily?: { def: QuestDef; progress: number[] };
 }
 
 export class QuestLog {
@@ -101,10 +101,16 @@ export class QuestLog {
     }
   }
 
-  /** Gera ou continua missão diária. */
+  /** Gera ou continua a missão diária. Descarta diária de dias anteriores. */
   refreshDaily(playerLevel: number): QuestState | null {
+    const today = todayDailyId();
     const existing = Array.from(this.active.values()).find((s) => s.def.daily);
-    if (existing) return existing;
+    if (existing) {
+      if (existing.def.id === today) return existing;
+      this.active.delete(existing.def.id); // diária vencida
+      this.onUpdate?.();
+    }
+    if (this.completed.has(today)) return null; // já feita hoje
     const def = generateDaily(playerLevel);
     this.accept(def);
     return this.active.get(def.id) ?? null;
@@ -123,20 +129,23 @@ export class QuestLog {
   }
 
   toSave(): QuestLogSave {
-    const active = Array.from(this.active.values()).map((s) => ({
-      id: s.def.id,
-      progress: s.progress,
-    }));
+    const states = Array.from(this.active.values());
+    const active = states
+      .filter((s) => !s.def.daily)
+      .map((s) => ({ id: s.def.id, progress: s.progress }));
+    const daily = states.find((s) => s.def.daily);
     return {
       active,
       completed: Array.from(this.completed),
+      daily: daily ? { def: daily.def, progress: daily.progress } : undefined,
     };
   }
 
+  /** Restaura o estado salvo. Sempre limpa o estado atual (troca de mundo). */
   fromSave(data: QuestLogSave | undefined): void {
-    if (!data) return;
     this.active.clear();
     this.completed.clear();
+    if (!data) return;
     for (const c of data.completed ?? []) this.completed.add(c);
     for (const a of data.active ?? []) {
       const def = QUESTS[a.id];
@@ -144,6 +153,13 @@ export class QuestLog {
       this.active.set(a.id, {
         def,
         progress: a.progress ?? def.objectives.map(() => 0),
+        completed: false,
+      });
+    }
+    if (data.daily?.def) {
+      this.active.set(data.daily.def.id, {
+        def: data.daily.def,
+        progress: data.daily.progress ?? data.daily.def.objectives.map(() => 0),
         completed: false,
       });
     }

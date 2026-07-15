@@ -5,6 +5,7 @@
  */
 
 import * as THREE from "three";
+import { ChunkManager } from "../world/chunkManager.ts";
 import { QuestLog } from "./questLog.ts";
 import { QUESTS } from "./quest.ts";
 import { CaptionSystem } from "./intro.ts";
@@ -127,17 +128,18 @@ export function createNpcMesh(def: NpcDef): THREE.Group {
   return g;
 }
 
-/** Posiciona NPCs da vila perto do spawn. */
-export function placeVillageNpcs(scene: THREE.Scene): NpcInstance[] {
+/** Posiciona NPCs da vila perto do spawn, apoiados na superfície do terreno. */
+export function placeVillageNpcs(scene: THREE.Scene, world: ChunkManager): NpcInstance[] {
   const positions = [
-    new THREE.Vector3(6, 0, 4),
-    new THREE.Vector3(10, 0, 2),
-    new THREE.Vector3(4, 0, 8),
+    new THREE.Vector3(6.5, 0, 4.5),
+    new THREE.Vector3(10.5, 0, 2.5),
+    new THREE.Vector3(4.5, 0, 8.5),
   ];
   const instances: NpcInstance[] = [];
   for (let i = 0; i < NPCS.length && i < positions.length; i++) {
     const def = NPCS[i];
     const pos = positions[i];
+    pos.y = world.surfaceY(pos.x, pos.z) - 0.05;
     const group = createNpcMesh(def);
     group.position.copy(pos);
     scene.add(group);
@@ -157,8 +159,8 @@ export function getNpcDialog(npc: NpcDef, log: QuestLog): string[] | null {
 
   // Para cada quest ativa/completa, busca diálogo específico
   for (const state of log.getActive()) {
-    const key = `${state.def.id}_during`;
-    if (npc.dialogs[key]) return npc.dialogs[key];
+    const during = npc.dialogs[`${state.def.id}_during`] ?? npc.dialogs[`${state.def.id}_before`];
+    if (during) return during;
   }
   for (const id of log.getCompleted()) {
     const key = `${id}_after`;
@@ -177,7 +179,10 @@ export function interactNpc(
 ): boolean {
   const INTERACT_DIST = 3.5;
   for (const npc of npcs) {
-    if (npc.pos.distanceTo(playerPos) > INTERACT_DIST) continue;
+    // Distância horizontal: a altura do NPC segue o terreno, não o jogador.
+    const dx = npc.pos.x - playerPos.x;
+    const dz = npc.pos.z - playerPos.z;
+    if (Math.hypot(dx, dz) > INTERACT_DIST || Math.abs(npc.pos.y - playerPos.y) > 3) continue;
     const lines = getNpcDialog(npc.def, log);
     if (!lines) return true;
 
@@ -188,6 +193,9 @@ export function interactNpc(
         log.accept(questDef);
       }
     }
+
+    // Avança objetivos do tipo "talk" com este NPC.
+    log.handleEvent({ type: "npcTalk", target: npc.def.id });
 
     captions.play(lines);
     return true;

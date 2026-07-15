@@ -60,6 +60,15 @@ export class CaptionSystem {
     return this.active;
   }
 
+  /** Interrompe e esconde a sequência atual sem destruir o overlay (troca de mundo). */
+  hide(): void {
+    this.active = false;
+    this.queue = [];
+    this.onDone = undefined;
+    this.container.style.display = "none";
+    this.container.innerHTML = "";
+  }
+
   dispose(): void {
     this.container.remove();
   }

@@ -250,6 +250,31 @@ Mobs com máquina de estados e níveis, combate com knockback e dano flutuante, 
 
 ---
 
+## 6.1 Backlog de Refinamento Contínuo
+
+Melhorias identificadas nas revisões pós-fase — não bloqueiam o roadmap, mas devem ser atacadas ao longo do tempo, priorizadas de cima para baixo dentro de cada grupo.
+
+### Mundo vivo / quests (pós-Fase 4)
+- **Entrega real de itens**: objetivo `collect` hoje conta blocos minerados; evoluir para `deliver` (remove itens do inventário ao falar com o NPC) — dá sentido à ida à vila.
+- **Vila persistente e única**: gerar a vila uma única vez na criação do mundo (flag no save) em vez de reconstruir via `setBlock` a cada carga; usar blocos próprios (tocha/lanterna em vez de minério de ouro).
+- **NPCs vivos**: perambular curto ao redor da casa, olhar para o jogador ao interagir, indicador visual (!/?) sobre NPCs com quest disponível/completável.
+- **Boss com mecânica**: persistir HP/estado do boss no save; adicionar ao menos uma mecânica (investida telegrafada, invocação de mobs a 50% de HP) e arena reconhecível (ruínas).
+- **Bússola/seta de objetivo**: apontar vila/boss no HUD antes de existir minimapa (Fase 5).
+- **Diárias melhores**: quadro de missões na vila (2–3 diárias simultâneas), recompensas com itens além de XP.
+
+### Sistemas (dívidas das fases 1–3)
+- Geração de terreno em Web Worker (doc §5) — hoje na main thread.
+- Mobs persistem no save (hoje respawnam ao recarregar); esqueleto com projéteis; spawn por nível de luz real.
+- Item entity no mundo quando o inventário está cheio (hoje o excedente some).
+- Renomear mundo na tela inicial (§4.8).
+
+### Qualidade de código
+- Extrair o "modo de jogo" de `main.ts` (628 linhas) para um `GameSession`, deixando main.ts só com bootstrap.
+- Testes unitários para lógica pura (QuestLog, curva de XP, loot tables, crafting) — hoje não há nenhum.
+- Sanitizar/escapar strings interpoladas em `innerHTML` (HUD, legendas) antes de aceitar conteúdo dinâmico.
+
+---
+
 ## 7. Como Trabalhar com IA neste Projeto
 
 1. **Uma fase por vez, um sistema por sessão.** Peça "implemente o mesher greedy do chunk.ts conforme o doc" em vez de "faça o jogo".

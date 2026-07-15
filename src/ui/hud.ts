@@ -2,7 +2,7 @@ import type { Player } from "../entities/player.ts";
 import { Inventory, HOTBAR_SIZE, type ItemStack } from "../items/inventory.ts";
 import { ITEMS } from "../items/item.ts";
 import { CRAFTING_GRID_SIZE, findRecipe, canCraft, craftInGrid } from "../items/crafting.ts";
-import type { QuestState } from "../quests/quest.ts";
+import { targetName, type QuestState } from "../quests/quest.ts";
 
 /**
  * HUD em HTML sobreposto ao canvas (doc §3, regra 4). Fase 2: hotbar de itens
@@ -145,7 +145,9 @@ export class Hud {
               .map((obj, i) => {
                 const prog = s.progress[i] ?? 0;
                 const done = prog >= obj.amount;
-                return `<li class="${done ? "done" : ""}">${obj.type === "collect" ? "Colete" : obj.type === "kill" ? "Derrote" : obj.type === "craft" ? "Crie" : obj.type === "explore" ? "Explore" : "Converse"} ${obj.amount}x ${obj.target} — ${prog}/${obj.amount}</li>`;
+                const verb = obj.type === "collect" ? "Colete" : obj.type === "kill" ? "Derrote" : obj.type === "craft" ? "Crie" : obj.type === "explore" ? "Explore" : "Converse";
+                const qty = obj.amount > 1 ? `${obj.amount}x ` : "";
+                return `<li class="${done ? "done" : ""}">${verb} ${qty}${targetName(obj)} — ${prog}/${obj.amount}</li>`;
               })
               .join("");
             return `
