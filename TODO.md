@@ -26,8 +26,20 @@ Rastreamento por fase para retomar de onde parou (doc-roadmap §6, §7.4).
 - [ ] Renomear mundo na tela inicial (doc §4.8 menciona; não era item do roadmap §6)
 - [ ] Água dinâmica (fluxo/espalhamento) — fora do escopo do doc
 
-## Fase 2 — Sobrevivência
-- [ ] Inventário + hotbar, dureza/ferramentas por tier, minérios, crafting, dia/noite
+## Fase 2 — Sobrevivência ✅
+- [x] Registro declarativo de itens (`items/item.ts`) separado dos blocos
+- [x] Inventário em grade 3×9 + hotbar de 9 slots (`items/inventory.ts`)
+- [x] Hotbar com teclas 1–9 e scroll do mouse
+- [x] Blocos com `hardness`, `tool` e `minTier` (dureza + ferramenta por tier)
+- [x] Mineração contínua (segurar botão esquerdo) com progresso e overlay de rachadura
+- [x] Ferramentas por tier: madeira → pedra → ferro → ouro → arcano
+- [x] Minérios por profundidade: carvão, ferro, ouro, cristal arcano
+- [x] Drops de blocos convertidos em itens (ex.: pedra → pedregulho, madeira → log)
+- [x] Colocação de blocos via item selecionado na hotbar
+- [x] Crafting manual 2×2 aberto com E + receitas declarativas (`items/crafting.ts`)
+- [x] Ciclo dia/noite com paleta de cores, iluminação e relógio no HUD
+- [x] Salvamento do inventário em IndexedDB
+- [x] Kit inicial ao criar novo mundo (picareta de madeira + blocos)
 
 ## Fase 3 — RPG
 - [ ] Mobs com FSM e níveis, combate, XP/atributos, loot e raridades

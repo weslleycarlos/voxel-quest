@@ -14,6 +14,9 @@
       <!-- Overlay azulado quando a cabeça está submersa -->
       <div id="waterOverlay" class="hidden"></div>
 
+      <!-- Overlay de progresso de quebra de bloco -->
+      <div id="breakOverlay" class="hidden" style="--break:0"></div>
+
       <!-- HUD sobreposto -->
       <div id="hud" class="hidden">
         <div id="crosshair"></div>
@@ -22,10 +25,13 @@
         <div id="controls">
           <b>WASD</b> mover &nbsp;·&nbsp; <b>Espaço</b> pular/nadar &nbsp;·&nbsp;
           <b>Shift</b> correr &nbsp;·&nbsp; <b>Clique esq.</b> quebrar &nbsp;·&nbsp;
-          <b>Clique dir.</b> colocar &nbsp;·&nbsp; <b>1–7</b> bloco &nbsp;·&nbsp;
-          <b>V</b> 1ª/3ª pessoa &nbsp;·&nbsp; <b>ESC</b> pausa
+          <b>Clique dir.</b> colocar &nbsp;·&nbsp; <b>1–9</b> hotbar &nbsp;·&nbsp;
+          <b>E</b> inventário &nbsp;·&nbsp; <b>V</b> câmera &nbsp;·&nbsp; <b>ESC</b> pausa
         </div>
       </div>
+
+      <!-- Inventário + crafting (aberto com E) -->
+      <div id="inventory" class="hidden"></div>
 
       <!-- Tela inicial: lista de mundos (conteúdo dinâmico via titleScreen.ts) -->
       <div id="overlay" class="hidden"></div>

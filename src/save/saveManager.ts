@@ -1,16 +1,19 @@
 import { dbGet, dbGetPrefix, dbSetMany } from "./db.ts";
 import { touchWorld } from "./worldRegistry.ts";
+import type { InventorySave } from "../items/inventory.ts";
 
 /**
  * Serialização do mundo ativo (doc §3 /save/saveManager.ts, §4.8). Salva o
- * estado do jogador e APENAS os chunks modificados — o resto é regenerado pela
- * seed, mantendo os saves pequenos. Autosave: 30 s, pausa (ESC) e beforeunload.
+ * estado do jogador, inventário e APENAS os chunks modificados — o resto é
+ * regenerado pela seed, mantendo os saves pequenos. Autosave: 30 s, pausa e
+ * beforeunload.
  */
 
 export interface PlayerSave {
   pos: [number, number, number];
   yaw: number;
   pitch: number;
+  inventory: InventorySave;
 }
 
 export interface WorldSave {

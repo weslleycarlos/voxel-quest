@@ -15,9 +15,14 @@ export const enum Block {
   Water = 7,
   Snow = 8,
   Bedrock = 9,
+  CoalOre = 10,
+  IronOre = 11,
+  GoldOre = 12,
+  CrystalOre = 13,
 }
 
 export type Face = "top" | "bottom" | "side";
+export type ToolType = "pickaxe" | "axe" | "shovel";
 
 export interface BlockDef {
   id: Block;
@@ -30,6 +35,12 @@ export interface BlockDef {
   placeable: boolean;
   /** Pode ser quebrado pelo jogador. */
   breakable: boolean;
+  /** Dureza: tempo base (s) para quebrar com ferramenta adequada. */
+  hardness: number;
+  /** Ferramenta adequada (null = mãos). */
+  tool?: ToolType;
+  /** Tier mínimo da ferramenta para quebrar em tempo normal. */
+  minTier: number;
   /** Cor base RGB (0–1) por face, multiplicada por AO e textura de detalhe. */
   color: { top: [number, number, number]; bottom: [number, number, number]; side: [number, number, number] };
 }
@@ -51,6 +62,8 @@ export const BLOCKS: Record<Block, BlockDef> = {
     fluid: false,
     placeable: false,
     breakable: false,
+    hardness: 0,
+    minTier: 0,
     color: uniform(0x000000),
   },
   [Block.Grass]: {
@@ -60,6 +73,9 @@ export const BLOCKS: Record<Block, BlockDef> = {
     fluid: false,
     placeable: true,
     breakable: true,
+    hardness: 0.6,
+    tool: "shovel",
+    minTier: 0,
     color: { top: rgb(0x6fb03a), side: rgb(0x7a5a34), bottom: rgb(0x6b4a2a) },
   },
   [Block.Dirt]: {
@@ -69,6 +85,9 @@ export const BLOCKS: Record<Block, BlockDef> = {
     fluid: false,
     placeable: true,
     breakable: true,
+    hardness: 0.5,
+    tool: "shovel",
+    minTier: 0,
     color: uniform(0x7a5a34),
   },
   [Block.Stone]: {
@@ -78,6 +97,9 @@ export const BLOCKS: Record<Block, BlockDef> = {
     fluid: false,
     placeable: true,
     breakable: true,
+    hardness: 3.0,
+    tool: "pickaxe",
+    minTier: 1,
     color: uniform(0x8b8f96),
   },
   [Block.Sand]: {
@@ -87,6 +109,9 @@ export const BLOCKS: Record<Block, BlockDef> = {
     fluid: false,
     placeable: true,
     breakable: true,
+    hardness: 0.5,
+    tool: "shovel",
+    minTier: 0,
     color: uniform(0xd9c98f),
   },
   [Block.Wood]: {
@@ -96,6 +121,9 @@ export const BLOCKS: Record<Block, BlockDef> = {
     fluid: false,
     placeable: true,
     breakable: true,
+    hardness: 1.5,
+    tool: "axe",
+    minTier: 0,
     color: { top: rgb(0xb5895a), bottom: rgb(0xb5895a), side: rgb(0x6f4f2f) },
   },
   [Block.Leaves]: {
@@ -105,6 +133,8 @@ export const BLOCKS: Record<Block, BlockDef> = {
     fluid: false,
     placeable: true,
     breakable: true,
+    hardness: 0.2,
+    minTier: 0,
     color: uniform(0x4f8f36),
   },
   [Block.Water]: {
@@ -114,6 +144,8 @@ export const BLOCKS: Record<Block, BlockDef> = {
     fluid: true,
     placeable: false,
     breakable: false,
+    hardness: 0,
+    minTier: 0,
     color: uniform(0x3b6ea5),
   },
   [Block.Snow]: {
@@ -123,6 +155,9 @@ export const BLOCKS: Record<Block, BlockDef> = {
     fluid: false,
     placeable: true,
     breakable: true,
+    hardness: 0.4,
+    tool: "shovel",
+    minTier: 0,
     color: { top: rgb(0xe8f0f2), side: rgb(0xc9d6da), bottom: rgb(0x8b8f96) },
   },
   [Block.Bedrock]: {
@@ -132,7 +167,57 @@ export const BLOCKS: Record<Block, BlockDef> = {
     fluid: false,
     placeable: false,
     breakable: false,
+    hardness: 0,
+    minTier: 99,
     color: uniform(0x3a3d42),
+  },
+  [Block.CoalOre]: {
+    id: Block.CoalOre,
+    name: "minério de carvão",
+    solid: true,
+    fluid: false,
+    placeable: true,
+    breakable: true,
+    hardness: 2.5,
+    tool: "pickaxe",
+    minTier: 1,
+    color: { top: rgb(0x555555), bottom: rgb(0x3a3a3a), side: rgb(0x4a4a4a) },
+  },
+  [Block.IronOre]: {
+    id: Block.IronOre,
+    name: "minério de ferro",
+    solid: true,
+    fluid: false,
+    placeable: true,
+    breakable: true,
+    hardness: 5.0,
+    tool: "pickaxe",
+    minTier: 2,
+    color: { top: rgb(0xb87333), bottom: rgb(0x8b5a2b), side: rgb(0x9c6230) },
+  },
+  [Block.GoldOre]: {
+    id: Block.GoldOre,
+    name: "minério de ouro",
+    solid: true,
+    fluid: false,
+    placeable: true,
+    breakable: true,
+    hardness: 6.5,
+    tool: "pickaxe",
+    minTier: 3,
+    color: { top: rgb(0xffd700), bottom: rgb(0xdaa520), side: rgb(0xeeb422) },
+  },
+  [Block.CrystalOre]: {
+    id: Block.CrystalOre,
+    name: "minério de cristal",
+    solid: true,
+    fluid: false,
+    placeable: true,
+    breakable: true,
+    hardness: 10.0,
+    tool: "pickaxe",
+    minTier: 4,
+    color: { top: rgb(0x9d7cff), bottom: rgb(0x7b5cff), side: rgb(0x8b6cff) },
   },
 };
 

@@ -3,17 +3,20 @@
 Jogo de blocos 3D estilo Minecraft com mecânicas de RPG/Arcade/MMORPG.
 Stack: **Three.js + TypeScript + Vite** (Opção A do `doc-roadmap`).
 
-## Fase 0 — Fundação ✅
+## Fase 2 — Sobrevivência ✅
 
-Primeira milestone jogável:
+Milestone atual jogável:
 
 - Projeto **Vite + TypeScript + Three.js**.
-- **Um chunk** (16×16×64) renderizado com **greedy meshing** e **oclusão de
-  ambiente por vértice** (1 draw call, cores/iluminação assadas).
-- **Câmera 3ª pessoa** com colisão contra voxels, e alternância para **1ª pessoa**.
-- **Movimento WASD** com **colisão AABB** própria e **gravidade** (pulo, corrida).
-- Elementos visuais: céu em gradiente, névoa, luz hemisférica + direcional,
-  sombreamento direcional por face e textura de detalhe pixel-art.
+- **Mundo procedural** com chunks dinâmicos, greedy meshing, AO por vértice,
+  biomas, cavernas e geração por seed.
+- **Inventário + hotbar** de itens (teclas 1–9, scroll do mouse).
+- **Mineração com dureza** e ferramentas por tier (madeira → pedra → ferro →
+  ouro → arcano).
+- **Minérios por profundidade**: carvão, ferro, ouro e cristal arcano.
+- **Crafting manual 2×2** aberto com a tecla **E**.
+- **Ciclo dia/noite** com paleta de cores, iluminação dinâmica e relógio no HUD.
+- Salvamento em IndexedDB: jogador, inventário e apenas chunks modificados.
 
 ## Como rodar
 
@@ -34,9 +37,14 @@ npm run preview
 | Tecla | Ação |
 |---|---|
 | WASD | Mover |
-| Espaço | Pular |
+| Espaço | Pular / nadar para cima |
 | Shift | Correr |
 | Mouse | Olhar (após clicar em "Entrar no mundo") |
+| Clique esquerdo (segurar) | Quebrar bloco |
+| Clique direito | Colocar bloco selecionado |
+| 1–9 | Selecionar slot da hotbar |
+| Scroll | Trocar item da hotbar |
+| E | Abrir inventário / crafting |
 | V | Alternar 1ª / 3ª pessoa |
 | ESC | Liberar o cursor (pausa) |
 
@@ -45,8 +53,12 @@ npm run preview
 ```
 src/
   core/    main.ts · input.ts · camera.ts
-  world/   chunk.ts · blocks.ts · mesher.ts · textures.ts
+  world/   chunk.ts · chunkManager.ts · blocks.ts · mesher.ts ·
+           terrainGen.ts · textures.ts · dayNight.ts
   entities/player.ts · playerModel.ts
+  items/   item.ts · inventory.ts · crafting.ts
+  save/    db.ts · saveManager.ts · worldRegistry.ts
+  screens/ titleScreen.ts
   ui/      hud.ts · style.css
 ```
 

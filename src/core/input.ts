@@ -7,10 +7,13 @@ export class Input {
   private keys = new Set<string>();
   mouseDX = 0;
   mouseDY = 0;
+  scrollDelta = 0;
   locked = false;
 
   /** Cliques ocorridos neste frame (0 = esquerdo, 2 = direito). */
   private clicks = new Set<number>();
+  /** Botões do mouse atualmente pressionados. */
+  private held = new Set<number>();
 
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", (e) => {
@@ -32,8 +35,17 @@ export class Input {
     });
 
     this.canvas.addEventListener("mousedown", (e) => {
-      if (this.locked) this.clicks.add(e.button);
+      if (this.locked) {
+        this.clicks.add(e.button);
+        this.held.add(e.button);
+      }
     });
+    window.addEventListener("mouseup", (e) => {
+      this.held.delete(e.button);
+    });
+    this.canvas.addEventListener("wheel", (e) => {
+      if (this.locked) this.scrollDelta += Math.sign(e.deltaY);
+    }, { passive: true });
     // Menu de contexto atrapalharia o clique direito de colocar bloco.
     this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   }
@@ -65,10 +77,16 @@ export class Input {
     return this.clicks.has(button);
   }
 
+  /** Botão do mouse está pressionado neste frame? */
+  isMouseDown(button: number): boolean {
+    return this.held.has(button);
+  }
+
   /** Zera acumulados de mouse ao fim do frame. */
   endFrame(): void {
     this.mouseDX = 0;
     this.mouseDY = 0;
+    this.scrollDelta = 0;
     this.clicks.clear();
   }
 }

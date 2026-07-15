@@ -115,7 +115,7 @@ export class TerrainGenerator {
           } else if (y > surface - 4) {
             block = this.subSurfaceBlock(biome, surface);
           } else {
-            block = Block.Stone;
+            block = this.oreAt(wx, y, wz, surface);
           }
           chunk.set(x, y, z, block);
         }
@@ -140,6 +140,31 @@ export class TerrainGenerator {
       default:
         return Block.Grass;
     }
+  }
+
+  /** Minérios por profundidade + distância (doc §4.1, §4.2). */
+  private oreAt(wx: number, y: number, wz: number, surface: number): Block {
+    const depth = surface - y;
+    const dist = Math.sqrt(wx * wx + wz * wz);
+    const h = hash2(wx * 31 + y, wz, this.treeSalt ^ 0x77);
+
+    // Cristal arcano: profundo e longe do spawn.
+    if (depth >= 28 && dist > 180) {
+      if (h < 0.015) return Block.CrystalOre;
+    }
+    // Ouro: profundo/médio.
+    if (depth >= 18) {
+      if (h < 0.02 + Math.min(0.02, dist / 12000)) return Block.GoldOre;
+    }
+    // Ferro.
+    if (depth >= 8) {
+      if (h < 0.035 + Math.min(0.02, dist / 8000)) return Block.IronOre;
+    }
+    // Carvão raso.
+    if (depth >= 3) {
+      if (h < 0.05) return Block.CoalOre;
+    }
+    return Block.Stone;
   }
 
   private subSurfaceBlock(biome: Biome, surface: number): Block {

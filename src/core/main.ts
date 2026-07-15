@@ -4,7 +4,7 @@ import { ChunkManager, RENDER_DISTANCE } from "../world/chunkManager.ts";
 import { TerrainGenerator } from "../world/terrainGen.ts";
 import { raycastVoxel } from "../world/raycast.ts";
 import { createDetailTexture } from "../world/textures.ts";
-import { Block, BLOCKS, PLACEABLE_BLOCKS } from "../world/blocks.ts";
+import { Block, BLOCKS } from "../world/blocks.ts";
 import { Input } from "./input.ts";
 import { CameraController } from "./camera.ts";
 import { Player } from "../entities/player.ts";
@@ -13,6 +13,9 @@ import { Hud } from "../ui/hud.ts";
 import { TitleScreen } from "../screens/titleScreen.ts";
 import { loadWorldSave, saveWorld, type PlayerSave } from "../save/saveManager.ts";
 import type { WorldMeta } from "../save/worldRegistry.ts";
+import { Inventory, HOTBAR_SIZE } from "../items/inventory.ts";
+import { ItemId, blockDrop } from "../items/item.ts";
+import { DayNightCycle, formatTime } from "../world/dayNight.ts";
 
 /**
  * Bootstrap e game loop (doc §3 /core/main.ts). Fase 1 — Mundo:
@@ -21,11 +24,10 @@ import type { WorldMeta } from "../save/worldRegistry.ts";
  * rebuild localizado, física de água (nado) e autosave em IndexedDB.
  */
 
-const SKY_TOP = 0x8fc7ff;
-const SKY_BOTTOM = 0xcfe8ff;
 const FOG_COLOR = 0xbfe0ff;
 const REACH = 6; // alcance de interação com blocos
 const AUTOSAVE_INTERVAL = 30; // s (doc §4.8)
+const HAND_BREAK_SPEED = 0.8; // poder das mãos nuas
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -34,8 +36,10 @@ renderer.setClearColor(FOG_COLOR);
 
 const scene = new THREE.Scene();
 const viewDist = RENDER_DISTANCE * CHUNK_X;
-scene.fog = new THREE.Fog(FOG_COLOR, viewDist * 0.55, viewDist * 0.95);
-scene.background = makeSkyTexture();
+const fog = new THREE.Fog(FOG_COLOR, viewDist * 0.55, viewDist * 0.95);
+scene.fog = fog;
+const skyTexture = makeSkyTexture();
+scene.background = skyTexture;
 
 const camera = new THREE.PerspectiveCamera(
   70,
@@ -50,6 +54,7 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.7);
 sun.position.set(0.5, 1, 0.3);
 scene.add(sun);
+const dayNight = new DayNightCycle(hemi, sun, fog, skyTexture);
 
 // --- Materiais compartilhados por todos os chunks ---
 const detailTexture = createDetailTexture();
@@ -82,15 +87,19 @@ scene.add(playerModel);
 
 const cameraController = new CameraController(camera);
 const input = new Input(canvas);
-const hud = new Hud();
+const inventory = new Inventory();
+const hud = new Hud(inventory);
 
 // --- Estado do mundo ativo ---
 let world: ChunkManager | null = null;
 let activeWorld: WorldMeta | null = null;
 let generator: TerrainGenerator | null = null;
-let selectedBlock: Block = PLACEABLE_BLOCKS[0];
 let autosaveTimer = 0;
 let playing = false;
+
+// --- Estado de mineração ---
+let miningTarget: { x: number; y: number; z: number } | null = null;
+let miningProgress = 0;
 
 // --- Telas ---
 const overlay = document.getElementById("overlay")!;
@@ -133,17 +142,23 @@ async function startWorld(meta: WorldMeta): Promise<void> {
   activeWorld = meta;
   generator = new TerrainGenerator(meta.seed);
   world = new ChunkManager(scene, generator, opaqueMaterial, waterMaterial, save.chunks);
-  selectedBlock = PLACEABLE_BLOCKS[0];
-  hud.setSelectedBlock(selectedBlock);
 
   if (save.player) {
     player.pos.set(...save.player.pos);
     player.yaw = save.player.yaw;
     player.pitch = save.player.pitch;
+    inventory.slots.fill(null);
+    inventory.fromSave(save.player.inventory);
   } else {
     player.pos.set(CHUNK_X / 2 + 0.5, 60, CHUNK_Z / 2 + 0.5);
     player.yaw = 0;
     player.pitch = 0;
+    inventory.slots.fill(null);
+    inventory.selected = 0;
+    // Kit inicial de sobrevivência (Fase 2).
+    inventory.add(ItemId.PickaxeWood, 1);
+    inventory.add(ItemId.DirtBlock, 16);
+    inventory.add(ItemId.StoneBlock, 16);
   }
   player.vel.set(0, 0, 0);
 
@@ -154,9 +169,12 @@ async function startWorld(meta: WorldMeta): Promise<void> {
   }
 
   autosaveTimer = 0;
+  miningTarget = null;
+  miningProgress = 0;
   playing = true;
   input.requestLock();
   hud.show();
+  hud.updateHotbar();
 }
 
 function stopWorld(): void {
@@ -175,13 +193,14 @@ async function persist(): Promise<void> {
     pos: [player.pos.x, player.pos.y, player.pos.z],
     yaw: player.yaw,
     pitch: player.pitch,
+    inventory: inventory.toSave(),
   };
   await saveWorld(activeWorld.id, playerSave, world.modifiedData);
 }
 
 // ---------- Interação com blocos ----------
 
-function handleBlockInteraction(): void {
+function handleBlockInteraction(dt: number): void {
   if (!world) return;
 
   const cp = Math.cos(player.pitch);
@@ -194,30 +213,95 @@ function handleBlockInteraction(): void {
 
   if (!hit) {
     highlight.visible = false;
+    resetMining();
     return;
   }
   highlight.visible = true;
   highlight.position.set(hit.block.x + 0.5, hit.block.y + 0.5, hit.block.z + 0.5);
 
-  // Esquerdo: quebrar (instantâneo na Fase 1; dureza/ferramentas na Fase 2).
-  if (input.clicked(0)) {
-    const target = world.getBlock(hit.block.x, hit.block.y, hit.block.z);
-    if (BLOCKS[target].breakable) {
-      world.setBlock(hit.block.x, hit.block.y, hit.block.z, Block.Air);
+  const targetId = world.getBlock(hit.block.x, hit.block.y, hit.block.z);
+  const target = BLOCKS[targetId];
+
+  // Esquerdo: segurar para quebrar com dureza/ferramenta.
+  if (input.isMouseDown(0)) {
+    if (!miningTarget ||
+      miningTarget.x !== hit.block.x ||
+      miningTarget.y !== hit.block.y ||
+      miningTarget.z !== hit.block.z) {
+      resetMining();
+      miningTarget = { x: hit.block.x, y: hit.block.y, z: hit.block.z };
     }
+
+    if (target.breakable) {
+      const breakTime = computeBreakTime(targetId);
+      miningProgress += dt / breakTime;
+      hud.setBreakProgress(miningProgress);
+
+      if (miningProgress >= 1) {
+        breakBlock(hit.block.x, hit.block.y, hit.block.z, targetId);
+        resetMining();
+      }
+    } else {
+      resetMining();
+    }
+  } else {
+    resetMining();
   }
 
-  // Direito: colocar o bloco selecionado na célula anterior ao impacto.
+  // Direito: colocar o bloco segurado na hotbar.
   if (input.clicked(2)) {
+    const hand = inventory.hand;
     const p = hit.previous;
     const occupied = world.getBlock(p.x, p.y, p.z);
     if (
+      hand?.placeBlock &&
       (occupied === Block.Air || occupied === Block.Water) &&
       !player.intersectsBlock(p.x, p.y, p.z)
     ) {
-      world.setBlock(p.x, p.y, p.z, selectedBlock);
+      world.setBlock(p.x, p.y, p.z, hand.placeBlock);
+      inventory.consumeHand();
+      hud.updateHotbar();
     }
   }
+}
+
+function computeBreakTime(blockId: Block): number {
+  const def = BLOCKS[blockId];
+  const hand = inventory.hand;
+  let power = HAND_BREAK_SPEED;
+  let correctTool = false;
+
+  if (hand?.tool && def.tool && hand.tool.type === def.tool && hand.tool.tier >= def.minTier) {
+    power = hand.tool.power;
+    correctTool = true;
+  }
+
+  // Ferramenta errada: penalidade severa; mãos nuas em bloco que precisa de ferramenta: ainda pior.
+  if (def.tool && (!hand?.tool || hand.tool.type !== def.tool || hand.tool.tier < def.minTier)) {
+    power = correctTool ? power : hand?.tool ? 0.2 : 0.05;
+  }
+
+  return Math.max(0.05, def.hardness / power);
+}
+
+function breakBlock(x: number, y: number, z: number, blockId: Block): void {
+  if (!world) return;
+  const drop = blockDrop(blockId);
+  if (drop) {
+    const leftover = inventory.add(drop, 1);
+    // Se não couber, "dropa no chão" (perdido na Fase 2; Fase 3 pode ter entidades).
+    if (leftover > 0) {
+      // Futuro: criar item entity no mundo.
+    }
+    hud.updateHotbar();
+  }
+  world.setBlock(x, y, z, Block.Air);
+}
+
+function resetMining(): void {
+  miningTarget = null;
+  miningProgress = 0;
+  hud.hideBreakOverlay();
 }
 
 // ---------- Loop ----------
@@ -228,15 +312,29 @@ function frame(now: number): void {
   last = now;
 
   if (playing && world) {
-    if (input.locked) {
+    // Inventário/crafting (também funciona com pointer lock liberado).
+    if (input.pressed("KeyE")) {
+      if (hud.isInventoryOpen()) {
+        hud.returnHeld();
+        hud.toggleInventory();
+      } else {
+        hud.toggleInventory();
+      }
+    }
+
+    if (input.locked && !hud.isInventoryOpen()) {
       if (input.pressed("KeyV")) cameraController.toggle();
 
-      // Seleção da hotbar (teclas 1–7).
-      for (let i = 0; i < PLACEABLE_BLOCKS.length; i++) {
+      // Seleção da hotbar (teclas 1–9).
+      for (let i = 0; i < HOTBAR_SIZE; i++) {
         if (input.pressed(`Digit${i + 1}`)) {
-          selectedBlock = PLACEABLE_BLOCKS[i];
-          hud.setSelectedBlock(selectedBlock);
+          inventory.selectHotbar(i);
+          hud.updateHotbar();
         }
+      }
+      if (input.scrollDelta !== 0) {
+        inventory.scroll(input.scrollDelta);
+        hud.updateHotbar();
       }
 
       player.update(dt, input, world.solidAt, world.fluidAt);
@@ -247,29 +345,32 @@ function frame(now: number): void {
         player.vel.set(0, 0, 0);
       }
 
-      handleBlockInteraction();
+      handleBlockInteraction(dt);
       cameraController.update(player, world.solidAt);
-      hud.update(
-        dt,
-        player,
-        cameraController.firstPerson,
-        generator!.biomeAt(Math.floor(player.pos.x), Math.floor(player.pos.z))
-      );
-
-      // Autosave periódico (doc §4.8).
-      autosaveTimer += dt;
-      if (autosaveTimer >= AUTOSAVE_INTERVAL) {
-        autosaveTimer = 0;
-        void persist();
-      }
     }
 
+    dayNight.update(dt);
     world.update(player.pos.x, player.pos.z);
+    hud.update(
+      dt,
+      player,
+      cameraController.firstPerson,
+      generator!.biomeAt(Math.floor(player.pos.x), Math.floor(player.pos.z)),
+      dayNight.timeOfDay,
+      formatTime(dayNight.timeOfDay)
+    );
 
     // Posiciona/orienta o modelo do jogador (oculto em 1ª pessoa).
     playerModel.position.copy(player.pos);
     playerModel.rotation.y = player.yaw;
     playerModel.visible = !cameraController.firstPerson;
+
+    // Autosave periódico (doc §4.8).
+    autosaveTimer += dt;
+    if (autosaveTimer >= AUTOSAVE_INTERVAL) {
+      autosaveTimer = 0;
+      void persist();
+    }
   }
 
   input.endFrame();
@@ -298,8 +399,8 @@ function makeSkyTexture(): THREE.Texture {
   c.height = 256;
   const ctx = c.getContext("2d")!;
   const grad = ctx.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, `#${SKY_TOP.toString(16).padStart(6, "0")}`);
-  grad.addColorStop(1, `#${SKY_BOTTOM.toString(16).padStart(6, "0")}`);
+  grad.addColorStop(0, "#8fc7ff");
+  grad.addColorStop(1, "#cfe8ff");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 2, 256);
   const tex = new THREE.CanvasTexture(c);
