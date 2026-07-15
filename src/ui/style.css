@@ -441,6 +441,99 @@ body {
   box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35);
 }
 
+/* ---------- Vida / XP / nível (Fase 3) ---------- */
+#vitals {
+  position: absolute;
+  bottom: 118px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(70vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 2;
+}
+#vitals .bar {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+#vitals .bar.xp {
+  height: 9px;
+}
+#vitals .bar > div {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  transition: width 0.15s ease;
+}
+#hpFill {
+  background: linear-gradient(180deg, #ff7a6a, #c33324);
+}
+#xpFill {
+  background: linear-gradient(180deg, #9be06a, var(--accent-dark));
+}
+#vitals .bar span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+/* ---------- Toasts (loot / level up / morte) ---------- */
+#toasts {
+  position: absolute;
+  bottom: 160px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 3;
+}
+.toast {
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 999px;
+  backdrop-filter: blur(3px);
+  animation: toast-in 0.15s ease, toast-out 0.4s ease 2.2s forwards;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+@keyframes toast-out {
+  to { opacity: 0; transform: translateY(-8px); }
+}
+
+/* ---------- Dano recebido ---------- */
+#hurtOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgba(200, 30, 20, 0.45) 100%
+  );
+  animation: hurt-fade 0.5s ease forwards;
+}
+@keyframes hurt-fade {
+  to { opacity: 0; }
+}
+
 /* ---------- Debaixo d'água ---------- */
 #waterOverlay {
   position: absolute;

@@ -14,8 +14,18 @@ import { TitleScreen } from "../screens/titleScreen.ts";
 import { loadWorldSave, saveWorld, type PlayerSave } from "../save/saveManager.ts";
 import type { WorldMeta } from "../save/worldRegistry.ts";
 import { Inventory, HOTBAR_SIZE } from "../items/inventory.ts";
-import { ItemId, blockDrop } from "../items/item.ts";
+import { ItemId, ITEMS, blockDrop } from "../items/item.ts";
 import { DayNightCycle, formatTime } from "../world/dayNight.ts";
+import { Spawner } from "../entities/spawner.ts";
+import { scaledXp } from "../entities/mobTypes.ts";
+import type { Mob } from "../entities/mob.ts";
+import {
+  FloatingTextManager,
+  rollPlayerDamage,
+  PLAYER_ATTACK_COOLDOWN,
+  PLAYER_ATTACK_RANGE,
+} from "../entities/combat.ts";
+import { rollLoot, RARITY_COLORS } from "../items/lootTables.ts";
 
 /**
  * Bootstrap e game loop (doc §3 /core/main.ts). Fase 1 — Mundo:
@@ -83,12 +93,12 @@ scene.add(highlight);
 // --- Entidades e controles (independentes do mundo ativo) ---
 const player = new Player();
 const playerModel = createPlayerModel();
-scene.add(playerModel);
+scene.add(playerModel.group);
 
 const cameraController = new CameraController(camera);
 const input = new Input(canvas);
 const inventory = new Inventory();
-const hud = new Hud(inventory);
+const hud = new Hud(inventory, () => input.requestLock());
 
 // --- Estado do mundo ativo ---
 let world: ChunkManager | null = null;
@@ -100,6 +110,11 @@ let playing = false;
 // --- Estado de mineração ---
 let miningTarget: { x: number; y: number; z: number } | null = null;
 let miningProgress = 0;
+
+// --- Fase 3: mobs, combate e textos flutuantes ---
+let spawner: Spawner | null = null;
+const floatingText = new FloatingTextManager(scene);
+let attackCooldown = 0;
 
 // --- Telas ---
 const overlay = document.getElementById("overlay")!;
@@ -122,6 +137,8 @@ document.addEventListener("pointerlockchange", () => {
   if (input.locked) {
     pausePanel.classList.add("hidden");
     hud.show();
+  } else if (hud.isInventoryOpen()) {
+    // Lock liberado pelo próprio inventário (E): não é pausa.
   } else {
     // ESC = pausa: mostra o menu e dispara um save (doc §4.8).
     pausePanel.classList.remove("hidden");
@@ -155,11 +172,18 @@ async function startWorld(meta: WorldMeta): Promise<void> {
     player.pitch = 0;
     inventory.slots.fill(null);
     inventory.selected = 0;
-    // Kit inicial de sobrevivência (Fase 2).
+    // Kit inicial de sobrevivência (Fase 2) + espada (Fase 3).
     inventory.add(ItemId.PickaxeWood, 1);
+    inventory.add(ItemId.SwordWood, 1);
     inventory.add(ItemId.DirtBlock, 16);
     inventory.add(ItemId.StoneBlock, 16);
   }
+  // Stats RPG (Fase 3): restaura do save ou usa padrões de nível 1.
+  player.level = save.player?.stats?.level ?? 1;
+  player.xp = save.player?.stats?.xp ?? 0;
+  player.maxHp = save.player?.stats?.maxHp ?? 20;
+  player.hp = save.player?.stats?.hp ?? player.maxHp;
+  player.hurtCooldown = 0;
   player.vel.set(0, 0, 0);
 
   // Garante chão sob o jogador antes do primeiro frame.
@@ -168,6 +192,8 @@ async function startWorld(meta: WorldMeta): Promise<void> {
     player.pos.y = world.surfaceY(player.pos.x, player.pos.z);
   }
 
+  spawner = new Spawner(scene, world);
+  attackCooldown = 0;
   autosaveTimer = 0;
   miningTarget = null;
   miningProgress = 0;
@@ -179,6 +205,9 @@ async function startWorld(meta: WorldMeta): Promise<void> {
 
 function stopWorld(): void {
   playing = false;
+  spawner?.dispose();
+  spawner = null;
+  floatingText.dispose();
   world?.dispose();
   world = null;
   activeWorld = null;
@@ -194,6 +223,7 @@ async function persist(): Promise<void> {
     yaw: player.yaw,
     pitch: player.pitch,
     inventory: inventory.toSave(),
+    stats: { hp: player.hp, maxHp: player.maxHp, level: player.level, xp: player.xp },
   };
   await saveWorld(activeWorld.id, playerSave, world.modifiedData);
 }
@@ -209,7 +239,19 @@ function handleBlockInteraction(dt: number): void {
     Math.sin(player.pitch),
     -Math.cos(player.yaw) * cp
   );
-  const hit = raycastVoxel(player.eyePosition(), dir, REACH, world);
+  // Fase 3: mob na mira tem prioridade sobre mineração no clique esquerdo.
+  const eye = player.eyePosition();
+  const mobTarget = spawner?.raycast(eye, dir, PLAYER_ATTACK_RANGE) ?? null;
+  if (mobTarget) {
+    resetMining();
+    if (input.isMouseDown(0) && attackCooldown <= 0) {
+      attackMob(mobTarget);
+    }
+    highlight.visible = false;
+    return;
+  }
+
+  const hit = raycastVoxel(eye, dir, REACH, world);
 
   if (!hit) {
     highlight.visible = false;
@@ -304,6 +346,65 @@ function resetMining(): void {
   hud.hideBreakOverlay();
 }
 
+// ---------- Combate (Fase 3) ----------
+
+function attackMob(mob: Mob): void {
+  attackCooldown = PLAYER_ATTACK_COOLDOWN;
+  const hand = inventory.hand;
+  const { damage, crit } = rollPlayerDamage(hand?.damage, player.strength);
+  const died = mob.hurt(damage, player.pos);
+
+  const textPos = mob.pos.clone().add(new THREE.Vector3(0, mob.def.height + 0.2, 0));
+  floatingText.spawn(textPos, `${damage}${crit ? "!" : ""}`, crit ? "#ffd75a" : "#ffffff", crit);
+
+  if (died) onMobKilled(mob);
+}
+
+function onMobKilled(mob: Mob): void {
+  // XP com número flutuante e possível level up.
+  const xp = scaledXp(mob.def, mob.level);
+  const ups = player.addXp(xp);
+  floatingText.spawn(
+    mob.pos.clone().add(new THREE.Vector3(0, mob.def.height + 0.7, 0)),
+    `+${xp} XP`,
+    "#9be06a"
+  );
+  if (ups > 0) {
+    hud.toast(`⭐ Nível ${player.level}! Vida máxima +${ups * 4}`, "#ffd75a");
+  }
+
+  // Loot direto para o inventário, com aviso colorido por raridade.
+  for (const drop of rollLoot(mob.def.lootTable, mob.level)) {
+    const leftover = inventory.add(drop.item, drop.count);
+    const got = drop.count - leftover;
+    if (got > 0) {
+      hud.toast(`+${got} ${ITEMS[drop.item].name}`, RARITY_COLORS[drop.rarity]);
+    }
+  }
+  hud.updateHotbar();
+}
+
+/** Mob acertou o jogador (callback do spawner). */
+function onPlayerAttacked(mob: Mob, damage: number): void {
+  const knock = player.pos.clone().sub(mob.pos).setY(0).normalize();
+  const died = player.takeDamage(damage, knock);
+  if (player.hurtCooldown === 0.6) {
+    // Dano de fato aplicado (não estava invulnerável).
+    hud.flashHurt();
+    floatingText.spawn(player.eyePosition().add(new THREE.Vector3(0, 0.4, 0)), `-${damage}`, "#ff6a5a");
+  }
+  if (died) respawnPlayer();
+}
+
+function respawnPlayer(): void {
+  if (!world) return;
+  hud.toast("☠ Você morreu! Renascendo no ponto inicial…", "#ff6a5a");
+  player.pos.set(CHUNK_X / 2 + 0.5, 60, CHUNK_Z / 2 + 0.5);
+  world.loadAround(player.pos.x, player.pos.z, 2);
+  player.pos.y = world.surfaceY(player.pos.x, player.pos.z);
+  player.respawn();
+}
+
 // ---------- Loop ----------
 
 let last = performance.now();
@@ -345,9 +446,25 @@ function frame(now: number): void {
         player.vel.set(0, 0, 0);
       }
 
+      attackCooldown = Math.max(0, attackCooldown - dt);
       handleBlockInteraction(dt);
       cameraController.update(player, world.solidAt);
     }
+
+    // Fase 3: mobs (FSM/spawn/despawn), regen e números de dano.
+    player.tickStats(dt);
+    const isNight = dayNight.timeOfDay > 0.27 && dayNight.timeOfDay < 0.73;
+    spawner?.update(
+      dt,
+      {
+        playerPos: player.pos,
+        playerAlive: player.hp > 0,
+        solid: world.solidAt,
+        attackPlayer: onPlayerAttacked,
+      },
+      isNight
+    );
+    floatingText.update(dt);
 
     dayNight.update(dt);
     world.update(player.pos.x, player.pos.z);
@@ -360,10 +477,9 @@ function frame(now: number): void {
       formatTime(dayNight.timeOfDay)
     );
 
-    // Posiciona/orienta o modelo do jogador (oculto em 1ª pessoa).
-    playerModel.position.copy(player.pos);
-    playerModel.rotation.y = player.yaw;
-    playerModel.visible = !cameraController.firstPerson;
+    // Posiciona/anima o modelo do jogador (oculto em 1ª pessoa).
+    playerModel.update(player, dt);
+    playerModel.group.visible = !cameraController.firstPerson;
 
     // Autosave periódico (doc §4.8).
     autosaveTimer += dt;

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Voxel Quest — Fase 1</title>
+    <title>Voxel Quest</title>
     <link rel="stylesheet" href="/src/ui/style.css" />
   </head>
   <body>
@@ -17,11 +17,21 @@
       <!-- Overlay de progresso de quebra de bloco -->
       <div id="breakOverlay" class="hidden" style="--break:0"></div>
 
+      <!-- Vinheta vermelha ao levar dano (Fase 3) -->
+      <div id="hurtOverlay" class="hidden"></div>
+
       <!-- HUD sobreposto -->
       <div id="hud" class="hidden">
         <div id="crosshair"></div>
         <div id="stats"></div>
         <div id="hotbar"></div>
+        <!-- Vida, XP e nível (Fase 3) -->
+        <div id="vitals">
+          <div class="bar hp"><div id="hpFill"></div><span id="hpText"></span></div>
+          <div class="bar xp"><div id="xpFill"></div><span id="xpText"></span></div>
+        </div>
+        <!-- Avisos de loot/level up -->
+        <div id="toasts"></div>
         <div id="controls">
           <b>WASD</b> mover &nbsp;·&nbsp; <b>Espaço</b> pular/nadar &nbsp;·&nbsp;
           <b>Shift</b> correr &nbsp;·&nbsp; <b>Clique esq.</b> quebrar &nbsp;·&nbsp;
