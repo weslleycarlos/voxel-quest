@@ -16,6 +16,12 @@ export class Hud {
   private waterOverlay = document.getElementById("waterOverlay")!;
   private breakOverlay = document.getElementById("breakOverlay")!;
   private inventoryEl = document.getElementById("inventory")!;
+  private hurtOverlay = document.getElementById("hurtOverlay")!;
+  private toastsEl = document.getElementById("toasts")!;
+  private hpFill = document.getElementById("hpFill")!;
+  private hpText = document.getElementById("hpText")!;
+  private xpFill = document.getElementById("xpFill")!;
+  private xpText = document.getElementById("xpText")!;
   private fpsSamples: number[] = [];
 
   private inventory: Inventory;
@@ -24,8 +30,12 @@ export class Hud {
   private onCloseCallback?: () => void;
   private heldMouse: ItemStack | null = null;
 
-  constructor(inventory: Inventory) {
+  /** Reengaja o pointer lock no canvas do jogo (injetado pelo main). */
+  private relock?: () => void;
+
+  constructor(inventory: Inventory, relock?: () => void) {
     this.inventory = inventory;
+    this.relock = relock;
     this.inventoryEl.addEventListener("mousedown", (e) => this.onInventoryMouse(e));
     this.inventoryEl.addEventListener("contextmenu", (e) => e.preventDefault());
     this.renderInventory();
@@ -42,7 +52,10 @@ export class Hud {
       document.exitPointerLock?.();
       this.onCloseCallback?.();
     } else {
-      document.body.requestPointerLock?.();
+      // BUGFIX Fase 2: pedia lock em document.body — o Input só reconhece o
+      // canvas, então cliques (quebrar/colocar blocos) morriam após abrir o
+      // inventário uma vez. Relock sempre via canvas.
+      this.relock?.();
     }
   }
 
@@ -108,6 +121,32 @@ export class Hud {
       `Mão   ${handName}`;
 
     this.waterOverlay.classList.toggle("hidden", !(firstPerson && player.headInWater));
+
+    // Vida / XP / nível (Fase 3).
+    this.hpFill.style.width = `${(player.hp / player.maxHp) * 100}%`;
+    this.hpText.textContent = `❤ ${player.hp} / ${player.maxHp}`;
+    this.xpFill.style.width = `${(player.xp / player.xpToNext) * 100}%`;
+    this.xpText.textContent = `Nível ${player.level} — ${player.xp}/${player.xpToNext} XP`;
+  }
+
+  /** Vinheta vermelha rápida ao levar dano. */
+  flashHurt(): void {
+    this.hurtOverlay.classList.remove("hidden");
+    // Reinicia a animação CSS.
+    this.hurtOverlay.style.animation = "none";
+    void this.hurtOverlay.offsetWidth;
+    this.hurtOverlay.style.animation = "";
+  }
+
+  /** Aviso temporário (loot coletado, level up, morte). */
+  toast(message: string, color = "#eef2e9"): void {
+    const el = document.createElement("div");
+    el.className = "toast";
+    el.style.color = color;
+    el.textContent = message;
+    this.toastsEl.appendChild(el);
+    setTimeout(() => el.remove(), 2700);
+    while (this.toastsEl.children.length > 5) this.toastsEl.firstChild?.remove();
   }
 
   private renderHotbar(): void {

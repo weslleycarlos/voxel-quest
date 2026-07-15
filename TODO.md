@@ -41,11 +41,31 @@ Rastreamento por fase para retomar de onde parou (doc-roadmap §6, §7.4).
 - [x] Salvamento do inventário em IndexedDB
 - [x] Kit inicial ao criar novo mundo (picareta de madeira + blocos)
 
-## Fase 3 — RPG
-- [ ] Mobs com FSM e níveis, combate, XP/atributos, loot e raridades
+### Revisão pós-Fase 2 (bugs corrigidos)
+- [x] **Colocar blocos parava de funcionar**: ao fechar o inventário (E), o pointer lock era pedido em `document.body` em vez do canvas — o `Input` nunca voltava a reconhecer cliques. Agora o HUD reengaja o lock via canvas (`hud.ts` + `main.ts`).
+- [x] Menu de pausa aparecia por cima do inventário ao abrir com E (o exit do pointer lock era tratado como pausa).
+- [x] **Personagem "boneco duro" e flutuando**: o modelo antigo não tinha nada entre y=0 e y=0.6 (parecia sem aderência ao chão) e não animava. Reescrito com membros articulados (pivô em ombro/quadril), balanço de andar proporcional à velocidade, bob do corpo, pose no ar e rotação suavizada (`entities/playerModel.ts`).
+
+## Fase 3 — RPG ✅
+- [x] `entities/mob.ts`: classe base com FSM (idle → wander → chase → attack → dead), física AABB voxel, knockback, flash de dano e barra de vida + nome/nível flutuante
+- [x] `entities/mobTypes.ts`: mobs declarativos — Slime (dia/noite, pula), Esqueleto (noite/cavernas), Golem de Pedra (cavernas) — com stats escalando por nível
+- [x] `entities/spawner.ts`: spawn em anel ao redor do jogador respeitando dia/noite e profundidade; nível cresce com a distância da origem; cap, despawn por distância
+- [x] `entities/combat.ts`: dano do jogador (arma + força, chance de crítico) e números de dano flutuantes (sprites)
+- [x] Ataque com clique esquerdo prioriza mob na mira sobre mineração (alcance 3.2)
+- [x] XP/nível/atributos: curva de XP, level up dá +4 HP máx e +força; regen lenta fora de combate; morte → respawn no spawn inicial
+- [x] `items/lootTables.ts`: loot por mob com raridades (comum/incomum/raro/épico) e aviso colorido no HUD
+- [x] Espadas por tier (madeira → arcana) com receitas 2×2 e dano próprio; drops novos: gosma, osso
+- [x] HUD: barra de vida, barra de XP + nível, toasts (loot/level up/morte), vinheta de dano
+- [x] Stats do jogador salvos no IndexedDB (compatível com saves antigos)
+
+### Pendências conhecidas (Fase 3)
+- [ ] Mobs não persistem no save (respawnam ao recarregar)
+- [ ] Esqueleto ataca corpo-a-corpo (sem projéteis)
+- [ ] Sem spawn baseado em luz real (usa hora do dia + profundidade)
 
 ## Fase 4 — Missões e mundo vivo
-- [ ] Vila, NPCs, quests declarativas, quest log, boss regional
+- [ ] **Introdução com contexto/história**: abertura com texto/legendas no primeiro spawn do mundo (quem você é, onde está, objetivo inicial), pulável — o jogador não deve mais "aparecer no meio do nada" (doc §6 Fase 4)
+- [ ] Vila, NPCs, quests declarativas, quest log, boss regional (diálogos reutilizam o sistema de legendas da intro)
 
 ## Fase 5 — Polimento / futuro
 - [ ] Áudio, partículas, minimapa, balanceamento, multiplayer LAN opcional

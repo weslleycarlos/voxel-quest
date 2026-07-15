@@ -243,7 +243,7 @@ Inventário + hotbar, dureza de blocos e ferramentas por tier, minérios por pro
 Mobs com máquina de estados e níveis, combate com knockback e dano flutuante, XP/nível/atributos do jogador, loot tables e raridades.
 
 **Fase 4 — Missões e mundo vivo**
-Vila com NPCs, sistema de quests declarativo, quest log, missões diárias, primeiro boss regional.
+**Introdução com contexto/história**: o jogo NÃO deve mais largar o jogador "no meio do nada" — ao entrar num mundo pela primeira vez, exibir uma sequência de abertura (texto/legendas sobre o mundo, quem é o personagem e qual o objetivo inicial), puláveis com um clique, terminando com o primeiro objetivo apontando para a vila. Vila com NPCs, sistema de quests declarativo, quest log, missões diárias, primeiro boss regional. Diálogos de NPC e eventos importantes também usam o mesmo sistema de legendas da introdução.
 
 **Fase 5 — Polimento / futuro**
 Áudio, partículas, minimapa, balanceamento; opcionalmente multiplayer LAN com WebSocket (Node.js + `ws`), reaproveitando o sistema de eventos.

@@ -14,6 +14,13 @@ export interface PlayerSave {
   yaw: number;
   pitch: number;
   inventory: InventorySave;
+  /** Stats RPG (Fase 3). Opcional para saves antigos. */
+  stats?: {
+    hp: number;
+    maxHp: number;
+    level: number;
+    xp: number;
+  };
 }
 
 export interface WorldSave {

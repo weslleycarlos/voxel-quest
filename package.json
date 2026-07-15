@@ -1,7 +1,7 @@
 {
   "name": "voxel-quest",
   "version": "0.0.0",
-  "description": "Voxel sandbox + Action RPG (Three.js). Fase 2 — Sobrevivência.",
+  "description": "Voxel sandbox + Action RPG (Three.js). Fase 3 — RPG.",
   "type": "module",
   "scripts": {
     "dev": "vite",

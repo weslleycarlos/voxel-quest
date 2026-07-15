@@ -21,12 +21,23 @@ export const enum ItemId {
   GoldOre = "gold_ore",
   Crystal = "crystal",
 
+  // Drops de mobs (Fase 3)
+  SlimeGoo = "slime_goo",
+  Bone = "bone",
+
   // Ferramentas
   PickaxeWood = "pickaxe_wood",
   PickaxeStone = "pickaxe_stone",
   PickaxeIron = "pickaxe_iron",
   PickaxeGold = "pickaxe_gold",
   PickaxeArcane = "pickaxe_arcane",
+
+  // Armas (Fase 3)
+  SwordWood = "sword_wood",
+  SwordStone = "sword_stone",
+  SwordIron = "sword_iron",
+  SwordGold = "sword_gold",
+  SwordArcane = "sword_arcane",
 
   // Blocos colocáveis (sufixo _block para diferenciar do recurso bruto)
   GrassBlock = "grass_block",
@@ -58,6 +69,8 @@ export interface ItemDef {
     /** Velocidade base de mineração (dureza / poder = segundos). */
     power: number;
   };
+  /** Dano de ataque corpo-a-corpo (Fase 3; espadas e ferramentas). */
+  damage?: number;
 }
 
 function hexColor(hex: number): string {
@@ -151,6 +164,21 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     kind: "resource",
   },
 
+  [ItemId.SlimeGoo]: {
+    id: ItemId.SlimeGoo,
+    name: "gosma",
+    stack: 64,
+    color: hexColor(0x8fd44a),
+    kind: "resource",
+  },
+  [ItemId.Bone]: {
+    id: ItemId.Bone,
+    name: "osso",
+    stack: 64,
+    color: hexColor(0xe8e4d0),
+    kind: "resource",
+  },
+
   [ItemId.PickaxeWood]: {
     id: ItemId.PickaxeWood,
     name: "picareta de madeira",
@@ -190,6 +218,52 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     color: hexColor(0xb76eff),
     kind: "tool",
     tool: { type: "pickaxe", tier: 5, power: 12.0 },
+  },
+
+  [ItemId.SwordWood]: {
+    id: ItemId.SwordWood,
+    name: "espada de madeira",
+    stack: 1,
+    color: hexColor(0xa67c52),
+    kind: "tool",
+    tool: { type: "sword", tier: 1, power: 0.8 },
+    damage: 3,
+  },
+  [ItemId.SwordStone]: {
+    id: ItemId.SwordStone,
+    name: "espada de pedra",
+    stack: 1,
+    color: hexColor(0x808080),
+    kind: "tool",
+    tool: { type: "sword", tier: 2, power: 0.8 },
+    damage: 5,
+  },
+  [ItemId.SwordIron]: {
+    id: ItemId.SwordIron,
+    name: "espada de ferro",
+    stack: 1,
+    color: hexColor(0xc0c0c0),
+    kind: "tool",
+    tool: { type: "sword", tier: 3, power: 0.8 },
+    damage: 7,
+  },
+  [ItemId.SwordGold]: {
+    id: ItemId.SwordGold,
+    name: "espada de ouro",
+    stack: 1,
+    color: hexColor(0xffd700),
+    kind: "tool",
+    tool: { type: "sword", tier: 4, power: 0.8 },
+    damage: 9,
+  },
+  [ItemId.SwordArcane]: {
+    id: ItemId.SwordArcane,
+    name: "espada arcana",
+    stack: 1,
+    color: hexColor(0xb76eff),
+    kind: "tool",
+    tool: { type: "sword", tier: 5, power: 0.8 },
+    damage: 13,
   },
 
   [ItemId.GrassBlock]: {

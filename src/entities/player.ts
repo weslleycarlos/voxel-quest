@@ -38,6 +38,74 @@ export class Player {
   readonly height = 1.8;
   readonly eyeHeight = 1.62;
 
+  // --- Stats RPG (Fase 3): vida, XP, nível e atributos derivados ---
+  level = 1;
+  xp = 0;
+  maxHp = 20;
+  hp = 20;
+  /** Dano base sem arma (cresce com força/nível). */
+  baseDamage = 1;
+  /** Segundos de invulnerabilidade restantes após levar dano. */
+  hurtCooldown = 0;
+  private regenTimer = 0;
+
+  /** XP necessário para o próximo nível (curva suave). */
+  get xpToNext(): number {
+    return Math.floor(20 * Math.pow(this.level, 1.4));
+  }
+
+  /** Força: bônus de dano corpo-a-corpo. Vigor: HP máximo. */
+  get strength(): number {
+    return this.baseDamage + (this.level - 1);
+  }
+
+  /** Ganha XP; retorna quantos níveis subiu. */
+  addXp(amount: number): number {
+    this.xp += amount;
+    let ups = 0;
+    while (this.xp >= this.xpToNext) {
+      this.xp -= this.xpToNext;
+      this.level++;
+      this.maxHp += 4; // vigor
+      this.hp = this.maxHp;
+      ups++;
+    }
+    return ups;
+  }
+
+  /** Aplica dano com knockback; retorna true se morreu. */
+  takeDamage(amount: number, knockDir?: THREE.Vector3): boolean {
+    if (this.hurtCooldown > 0 || this.hp <= 0) return false;
+    this.hp = Math.max(0, this.hp - amount);
+    this.hurtCooldown = 0.6;
+    if (knockDir) {
+      this.vel.x += knockDir.x * 7;
+      this.vel.z += knockDir.z * 7;
+      this.vel.y = Math.max(this.vel.y, 4.5);
+    }
+    return this.hp <= 0;
+  }
+
+  /** Regeneração lenta fora de combate + timers (chamar todo frame). */
+  tickStats(dt: number): void {
+    this.hurtCooldown = Math.max(0, this.hurtCooldown - dt);
+    if (this.hp > 0 && this.hp < this.maxHp) {
+      this.regenTimer += dt;
+      if (this.regenTimer >= 4) {
+        this.regenTimer = 0;
+        this.hp = Math.min(this.maxHp, this.hp + 1);
+      }
+    } else {
+      this.regenTimer = 0;
+    }
+  }
+
+  respawn(): void {
+    this.hp = this.maxHp;
+    this.hurtCooldown = 1.5;
+    this.vel.set(0, 0, 0);
+  }
+
   update(dt: number, input: Input, solid: SolidAt, fluid: FluidAt): void {
     // --- Olhar ---
     this.yaw -= input.mouseDX * MOUSE_SENS;

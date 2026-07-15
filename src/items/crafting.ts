@@ -53,6 +53,33 @@ export const RECIPES: Recipe[] = [
     pattern: [ItemId.Crystal, ItemId.Crystal, ItemId.Crystal, ItemId.Stick],
     result: { id: ItemId.PickaxeArcane, count: 1 },
   },
+
+  // Espadas (Fase 3): lâmina em coluna sobre o cabo.
+  {
+    id: "sword_wood",
+    pattern: [ItemId.Plank, null, ItemId.Stick, null],
+    result: { id: ItemId.SwordWood, count: 1 },
+  },
+  {
+    id: "sword_stone",
+    pattern: [ItemId.Stone, null, ItemId.Stick, null],
+    result: { id: ItemId.SwordStone, count: 1 },
+  },
+  {
+    id: "sword_iron",
+    pattern: [ItemId.IronOre, null, ItemId.Stick, null],
+    result: { id: ItemId.SwordIron, count: 1 },
+  },
+  {
+    id: "sword_gold",
+    pattern: [ItemId.GoldOre, null, ItemId.Stick, null],
+    result: { id: ItemId.SwordGold, count: 1 },
+  },
+  {
+    id: "sword_arcane",
+    pattern: [ItemId.Crystal, null, ItemId.Stick, null],
+    result: { id: ItemId.SwordArcane, count: 1 },
+  },
 ];
 
 /** Verifica se o conteúdo do grid casa com uma receita (considera rotações? Não na Fase 2). */
